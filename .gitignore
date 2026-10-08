@@ -1,0 +1,43 @@
+# ── Datos ──
+# Todo el dato vive fuera del repo (DIPRES_HOME).
+# Estas reglas son red de seguridad por si algo se copia acá.
+*.csv
+*.xlsx
+*.parquet
+*.pdf
+*.xml
+raw/
+processed/
+reports/
+logs/
+exploracion/
+
+# Excepciones: archivos chicos que SÍ versionamos
+!docs/**/*.csv
+!**/criterios_*.csv
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ── Secretos y entorno ──
+.env
+*.key
+
+# ── Power BI ──
+*.pbix
+*.pbit
+
+# ── Sistema ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
