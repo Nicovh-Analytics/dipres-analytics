@@ -27,7 +27,7 @@ PERMANENTES = {
         "rol": "clasificador",
     },
     "dl_1263": {
-        "id_norma": None,   # PENDIENTE: buscar en LeyChile
+        "id_norma": 6536,  
         "titulo": "DL 1.263/1975 — Administración Financiera del Estado",
         "rol": "marco",
         "nota": "Art. 26 (modificaciones), 28 (gastos excedibles), 70 (decretos)",
@@ -39,16 +39,16 @@ PERMANENTES = {
 # =====================================================
 # Confirmados hasta ahora; completar los faltantes desde LeyChile.
 LEYES_PRESUPUESTO = {
-    2017: {"ley": "20.981", "id_norma": None},
-    2018: {"ley": "21.053", "id_norma": None},
-    2019: {"ley": "21.125", "id_norma": None},
-    2020: {"ley": "21.192", "id_norma": None},
-    2021: {"ley": "21.289", "id_norma": None},
-    2022: {"ley": "21.395", "id_norma": None},
-    2023: {"ley": "21.516", "id_norma": None},
+    2017: {"ley": "20.981", "id_norma": 1098001},
+    2018: {"ley": "21.053", "id_norma": 1112915},
+    2019: {"ley": "21.125", "id_norma": 1127180},
+    2020: {"ley": "21.192", "id_norma": 1140200},
+    2021: {"ley": "21.289", "id_norma": 1153629},
+    2022: {"ley": "21.395", "id_norma": 1169723},
+    2023: {"ley": "21.516", "id_norma": 1186683},
     2024: {"ley": "21.640", "id_norma": 1199318},   # confirmado
-    2025: {"ley": "21.722", "id_norma": None},
-    2026: {"ley": None,     "id_norma": None},
+    2025: {"ley": "21.722", "id_norma": 1209325},
+    2026: {"ley": "21.796", "id_norma": 1219410},
 }
 
 # =====================================================
