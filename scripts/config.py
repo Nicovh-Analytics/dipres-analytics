@@ -103,7 +103,7 @@ HTTP = {
     },
     "timeout": 120,
     "max_reintentos": 3,
-    "pausa_entre_descargas": 0.3,
+    "pausa_entre_descargas": 2,
 }
 
 # =====================================================
