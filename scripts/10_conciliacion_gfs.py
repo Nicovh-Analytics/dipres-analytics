@@ -1,30 +1,37 @@
 """
-10_conciliacion_gfs.py — Conciliación clasificador ↔ GFS
-=========================================================
+10_conciliacion_gfs.py — Conciliación clasificador ↔ GFS ↔ cifra oficial
+=========================================================================
 Produce tres salidas:
 
-  (5) Tabla antes/después: agregado según clasificador vs según GFS,
-      año por año, con prueba del signo repetida en ambos perímetros.
+  (1) Tipo de cambio: supuesto del presupuesto vs observado, por año.
 
-  (6) Conciliación en forma de estado: saldo según clasificador →
-      ajustes con fundamento → saldo según GFS → extrapresupuestario
-      → cifra oficial DIPRES.
+  (2) Conciliación en forma de estado, para cada año con cifra oficial:
+      saldo según clasificador → ajustes con fundamento → saldo según GFS
+      → brecha remanente → cifra oficial DIPRES.
+      La parte en dólares se convierte con el dólar OBSERVADO (es
+      ejecución). Se informa además la brecha con el SUPUESTO y el tipo
+      de cambio que la cerraría, para separar efecto cambiario de
+      operaciones fuera del dataset.
 
-  (7) Documentación de la brecha remanente.
+  (3) Composición del ajuste, cada moneda en su unidad.
 
-Requiere el parche GFS aplicado en dominio.py.
+La comparación ley vs ejecución (antes/después del perímetro y prueba del
+signo) vive en 18_ingresos.py.
+
+Requiere TC_SUPUESTO y TC_OBSERVADO llenos en dominio.py.
 
 Uso:
     python 10_conciliacion_gfs.py
 """
 
 import pandas as pd
-from scipy.stats import binomtest
 
 from config import DIRS
-from dominio import (MES_A_NUM, SUBTITULOS_INGRESO, AJUSTES_INGRESO_GFS,
-                     es_ingreso_gfs, gfs_verificado, nombre_subtitulo)
+from dominio import (AJUSTES_INGRESO_GFS, MES_A_NUM, SUBTITULOS_INGRESO,
+                     desvio_tipo_cambio, es_ingreso_gfs, gfs_verificado,
+                     nombre_subtitulo, tipo_cambio)
 from hallazgos import Registro
+from utils import leer_csv_robusto
 
 ANIO_EN_CURSO = 2026
 
@@ -36,40 +43,28 @@ MILES_A_MILLONES = 1_000
 
 # =====================================================
 def cargar_cierres() -> pd.DataFrame:
-    """Una fila por Año × Subtítulo con el cierre de cada año."""
-    df, _ = leer = None, None
-    df, _ = __import__("utils").leer_csv_robusto(
-        str(DIRS["consolidado"] / "cruce_nacional.csv"))
+    """Una fila por Año × Moneda × Subtítulo de ingreso, al cierre del año."""
+    df, _ = leer_csv_robusto(str(DIRS["consolidado"] / "cruce_nacional.csv"))
 
     df = df[df["Año"] < ANIO_EN_CURSO].copy()
     df["MesNum"] = df["Mes"].map(MES_A_NUM)
     df["Sub"] = df["Subtítulo"].astype(int)
+    df["Moneda"] = df["Moneda"].str.upper()
 
     # Cierre = último mes disponible de cada año
     idx = df.groupby("Año")["MesNum"].transform("max") == df["MesNum"]
-    c = df[idx].copy()
-
-    # Ambas monedas: DIPRES reporta el consolidado
-    c = c[c["Sub"].isin(SUBTITULOS_INGRESO)].copy()
-    c["error"] = c["ejecucion_acumulada"] - c["ley_inicial"]
-    return c
+    return df[idx & df["Sub"].isin(SUBTITULOS_INGRESO)].copy()
 
 
-def serie_anual(df: pd.DataFrame) -> pd.DataFrame:
-    """Agrega por año y calcula el error de proyección."""
-    return (df.groupby("Año")
-              .agg(ley=("ley_inicial", "sum"),
-                   ejec=("ejecucion_acumulada", "sum"))
-              .assign(error=lambda d: d["ejec"] - d["ley"],
-                      error_pct=lambda d: (d["ejec"] - d["ley"]) / d["ley"] * 100))
+def por_moneda(d: pd.DataFrame) -> tuple[float, float]:
+    """(miles de pesos, miles de dólares) de ejecucion_acumulada."""
+    s = d.groupby("Moneda")["ejecucion_acumulada"].sum()
+    return float(s.get("PESOS", 0)), float(s.get("DOLARES", 0))
 
 
-def signo(errores: pd.Series) -> tuple[int, int, float]:
-    """Devuelve (sobreestimó, subestimó, p-valor)."""
-    e = errores[errores != 0].dropna()
-    sobre, sub = int((e < 0).sum()), int((e > 0).sum())
-    p = binomtest(max(sobre, sub), len(e), 0.5, alternative="two-sided").pvalue
-    return sobre, sub, p
+def en_millones(pesos: float, usd: float, tc: float) -> float:
+    """Miles de pesos + miles de dólares × tc → millones de pesos."""
+    return (pesos + usd * tc) / MILES_A_MILLONES
 
 
 # =====================================================
@@ -77,48 +72,54 @@ if __name__ == "__main__":
     reg = Registro("conciliacion_gfs", salida_dir=DIRS["reportes"])
     c = cargar_cierres()
 
-    clasificador = c
-    gfs = c[c["Sub"].map(es_ingreso_gfs)]
-
-    s_clas = serie_anual(clasificador)
-    s_gfs = serie_anual(gfs)
-
-    # ── (5) Tabla antes/después ──────────────────────
+    # ── (1) Tipo de cambio ───────────────────────────
     print("=" * 78)
-    print("  (5)  AGREGADO SEGÚN CLASIFICADOR  vs  SEGÚN GFS")
+    print("  (1)  TIPO DE CAMBIO: SUPUESTO DEL PRESUPUESTO vs OBSERVADO ($/US$)")
     print("=" * 78)
-    print(f"\n{'Año':>6}{'Clasificador':>14}{'GFS':>14}   {'Δ perímetro':>14}")
-    print(f"{'':>6}{'error %':>14}{'error %':>14}")
-    for anio in s_clas.index:
-        a, b = s_clas.loc[anio, "error_pct"], s_gfs.loc[anio, "error_pct"]
-        print(f"{anio:>6}{a:>13.1f}%{b:>13.1f}%   {b - a:>13.1f} pp")
+    tc = desvio_tipo_cambio()
+    if tc.empty:
+        print("\n  Sin datos: llenar TC_SUPUESTO y TC_OBSERVADO en dominio.py")
+    else:
+        print(f"\n{'Año':>6}{'Supuesto':>12}{'Observado':>12}{'Desvío':>10}")
+        for _, r in tc.iterrows():
+            print(f"{int(r['Año']):>6}{r['supuesto']:>12,.1f}"
+                  f"{r['observado']:>12,.1f}{r['desvio_pct']:>+9.1f}%")
+        sobre = int((tc["desvio_pct"] > 0).sum())
+        print(f"\n  dólar observado sobre el supuesto: {sobre}/{len(tc)} años · "
+              f"desvío medio {tc['desvio_pct'].mean():+.1f}% · "
+              f"medio absoluto {tc['desvio_pct'].abs().mean():.1f}%")
+        tc.round(2).to_csv(DIRS["reportes"] / "tipo_cambio_desvio.csv",
+                           index=False)
 
-    for nombre, serie in [("Clasificador (01-15)", s_clas), ("GFS (ingresos)", s_gfs)]:
-        sobre, sub, p = signo(serie["error"])
-        media = serie["error_pct"].mean()
-        print(f"\n  {nombre}")
-        print(f"    sobreestimó {sobre} · subestimó {sub} · p = {p:.4f}")
-        print(f"    error medio {media:+.1f}% · mediana {serie['error_pct'].median():+.1f}%")
-        reg.info("prueba_signo", f"{nombre}: {sub}/{sobre+sub} subestima, "
-                                 f"p={p:.4f}, error medio {media:+.1f}%")
-
-    # ── (6) Conciliación ─────────────────────────────
+    # ── (2) Conciliación ─────────────────────────────
     print(f"\n{'=' * 78}")
-    print("  (6)  CONCILIACIÓN — EJECUCIÓN DE INGRESOS")
+    print("  (2)  CONCILIACIÓN — EJECUCIÓN DE INGRESOS")
     print("=" * 78)
 
     for anio in sorted(REFERENCIA_OFICIAL):
-        if anio not in s_clas.index:
+        d = c[c["Año"] == anio]
+        if d.empty:
+            print(f"\n  {anio}: sin datos de cierre")
+            continue
+        try:
+            tc_obs = tipo_cambio(anio, "observado")
+            tc_sup = tipo_cambio(anio, "supuesto")
+        except KeyError as e:
+            print(f"\n  {anio}: {e.args[0]} — conciliación omitida")
             continue
 
-        d = c[c["Año"] == anio]
-        base = d["ejecucion_acumulada"].sum() / MILES_A_MILLONES
+        base_p, base_u = por_moneda(d)
+        base = en_millones(base_p, base_u, tc_obs)
 
-        print(f"\n  Año {anio} — millones de pesos\n")
+        print(f"\n  Año {anio} — millones de pesos "
+              f"(dólares al observado: {tc_obs:,.1f} $/US$)\n")
         print(f"  {'Saldo según clasificador (Σ subt. 01-15)':<52}{base:>17,.0f}")
+        print(f"  {'   de ello en dólares (MUS$ ' + f'{base_u/1000:,.0f}' + ')':<52}"
+              f"{base_u * tc_obs / MILES_A_MILLONES:>17,.0f}")
 
         for sub, motivo in AJUSTES_INGRESO_GFS.items():
-            monto = d.loc[d["Sub"] == sub, "ejecucion_acumulada"].sum() / MILES_A_MILLONES
+            p, u = por_moneda(d[d["Sub"] == sub])
+            monto = en_millones(p, u, tc_obs)
             if monto == 0:
                 continue
             etiqueta = f"  (-) {sub:02d} {nombre_subtitulo(sub)}"
@@ -126,38 +127,62 @@ if __name__ == "__main__":
             print(f"  {etiqueta:<52}{-monto:>17,.0f}{marca}")
             print(f"       {motivo}")
 
-        gfs_anio = d[d["Sub"].map(es_ingreso_gfs)]["ejecucion_acumulada"].sum() / MILES_A_MILLONES
-        print(f"  {'─' * 69}")
-        print(f"  {'= Ingresos según criterio GFS (presupuestario)':<52}{gfs_anio:>17,.0f}")
-
+        gfs_p, gfs_u = por_moneda(d[d["Sub"].map(es_ingreso_gfs)])
+        gfs_anio = en_millones(gfs_p, gfs_u, tc_obs)
         oficial = REFERENCIA_OFICIAL[anio]
         brecha = oficial - gfs_anio
-        print(f"  {'  (+) Operaciones extrapresupuestarias':<52}{brecha:>17,.0f}")
-        print(f"       No disponible en el dataset — cifra derivada por diferencia")
+
+        print(f"  {'─' * 69}")
+        print(f"  {'= Ingresos según criterio GFS (presupuestario)':<52}{gfs_anio:>17,.0f}")
+        print(f"  {'  (+) Brecha remanente':<52}{brecha:>17,.0f}")
+        print(f"       No explicada por el dataset — cifra derivada por diferencia")
         print(f"  {'─' * 69}")
         print(f"  {'= Ingresos Gobierno Central Total (DIPRES)':<52}{oficial:>17,.0f}")
-        print(f"\n  Brecha: {brecha/oficial*100:.2f}% del total oficial")
+
+        # Sensibilidad al tipo de cambio
+        brecha_sup = oficial - en_millones(gfs_p, gfs_u, tc_sup)
+        tc_cierra = ((oficial * MILES_A_MILLONES - gfs_p) / gfs_u
+                     if gfs_u else float("nan"))
+        print(f"\n  Brecha con dólar observado ({tc_obs:,.1f}): "
+              f"{brecha / oficial * 100:+.2f}% del oficial")
+        print(f"  Brecha con dólar supuesto  ({tc_sup:,.1f}): "
+              f"{brecha_sup / oficial * 100:+.2f}% del oficial")
+        print(f"  Tipo de cambio que cierra la brecha: {tc_cierra:,.1f} $/US$")
 
         reg.info("conciliacion",
                  f"{anio}: clasificador {base:,.0f} → GFS {gfs_anio:,.0f} → "
-                 f"oficial {oficial:,.0f} (brecha {brecha/oficial*100:.2f}%)",
-                 anio=anio)
+                 f"oficial {oficial:,.0f} (brecha {brecha/oficial*100:+.2f}% "
+                 f"con TC observado {tc_obs:,.1f}; TC que cierra "
+                 f"{tc_cierra:,.1f})", anio=anio)
 
     print(f"\n  (*) correspondencia inferida del MEFP, no confirmada en")
     print(f"      documentación de DIPRES — pendiente de verificar")
 
-    # ── Composición del ajuste ───────────────────────
+    # ── (3) Composición del ajuste ───────────────────
     print(f"\n{'=' * 78}")
-    print("  COMPOSICIÓN DEL AJUSTE (todos los años)")
+    print("  (3)  COMPOSICIÓN DEL AJUSTE (todos los años, cada moneda en su unidad)")
     print("=" * 78)
-    print(f"\n{'Subtítulo':<44}{'Monto':>16}{'% del ajuste':>14}")
 
-    ajuste_total = c[~c["Sub"].map(es_ingreso_gfs)]["ejecucion_acumulada"].sum()
-    for sub in AJUSTES_INGRESO_GFS:
-        m = c.loc[c["Sub"] == sub, "ejecucion_acumulada"].sum()
-        if m == 0:
+    aj = c[~c["Sub"].map(es_ingreso_gfs)]
+    for moneda, unidad in [("PESOS", "MM$"), ("DOLARES", "MMUS$")]:
+        m = aj[aj["Moneda"] == moneda]
+        total = m["ejecucion_acumulada"].sum()
+        if total == 0:
             continue
-        print(f"{sub:02d} {nombre_subtitulo(sub)[:40]:<41}"
-              f"{m/MILES_A_MILLONES:>15,.0f}{m/ajuste_total*100:>13.1f}%")
+        print(f"\n  {moneda}")
+        print(f"{'Subtítulo':<44}{'Monto ' + unidad:>16}{'% del ajuste':>14}")
+        montos = m.groupby("Sub")["ejecucion_acumulada"].sum()
+        # Con montos de signo mixto (p. ej. 11 en dólares, ventas netas
+        # negativas) el % del total no tiene sentido: se omite
+        con_pct = (montos >= 0).all()
+        for sub in AJUSTES_INGRESO_GFS:
+            v = montos.get(sub, 0)
+            if v == 0:
+                continue
+            pct = f"{v / total * 100:>13.1f}%" if con_pct else f"{'—':>14}"
+            print(f"{sub:02d} {nombre_subtitulo(sub)[:40]:<41}"
+                  f"{v / MILES_A_MILLONES:>15,.0f}{pct}")
+        if not con_pct:
+            print("  (% omitido: hay subtítulos con monto neto negativo)")
 
     reg.emitir()

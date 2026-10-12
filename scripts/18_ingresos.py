@@ -17,16 +17,17 @@ Error de proyección = (ejecutado − inicial) / inicial
 Prueba del signo: bajo H0 (sin sesgo) cada año sub o sobreestima con
 p = 0,5. Binomial exacta, dos colas, sin dependencias externas.
 
+Clasificación: toda viene de dominio.py (CONCORDANCIA_GFS y
+NATURALEZA_INGRESO). Este script no define reglas propias.
+
 Salidas en DIRS["consolidado"]:
   ingresos_detalle.csv       RESPALDO GENERAL: año × moneda × subtítulo
-  ingresos_concordancia.csv  subtítulo → naturaleza / categoría GFS, con
-                             fundamento y si está verificado
-  ingresos_agregados.csv     suma ingenua vs agregado GFS por año
+  ingresos_concordancia.csv  copia de la clasificación usada (dominio)
+  ingresos_agregados.csv     ingenuo vs GFS vs pronóstico vs impuestos
   ingresos_prueba_signo.csv  prueba del signo por subtítulo y agregado
-
-Pendiente de verificar (plan de 10 puntos): diccionario de datos.gob.cl,
-DS 854 subs 02-04, tratamiento DIPRES del sub 10, y si el clasificador
-chileno se alineó con GFS. Esas filas quedan marcadas verificado=False.
+  ingresos_contribucion.csv  aporte EN PESOS de cada subtítulo al error
+                             total (antes 09_contribucion_sesgo.py): un %
+                             alto sobre una base chica pesa poco en pesos
 
 Uso:
     python 18_ingresos.py
@@ -38,46 +39,28 @@ import numpy as np
 import pandas as pd
 
 from config import DIRS
-from dominio import MES_A_NUM
+from dominio import (CONCORDANCIA_GFS, MES_A_NUM, NAT_CONTABLE, NAT_INTERNA,
+                     NAT_PRONOSTICO, NATURALEZA_INGRESO, es_ingreso_gfs,
+                     nombre_subtitulo, subtitulos_con_naturaleza)
 from hallazgos import Registro
 from utils import leer_csv_robusto
 
 SALIDA = DIRS["consolidado"]
 
-# Concordancia subtítulo → naturaleza. "pronóstico": el monto de la ley
-# es una estimación de lo que entrará. "financiamiento": bajo la línea en
-# GFS, la ley fija un monto autorizado, no un pronóstico. "contable":
-# arrastre de caja, no es un flujo del año.
+# Clasificación desde dominio: una sola fuente para todo el pipeline
 CONCORDANCIA = pd.DataFrame([
-    (1, "pronóstico", "ingreso: impuestos", True,
-     "GFSM 2014 cap. 5; DIPRES Estado de Operaciones"),
-    (2, "pronóstico", "ingreso: contribuciones sociales", False,
-     "verificar nombre/numeración en DS 854"),
-    (3, "pronóstico", "ingreso: impuestos (uso de bienes)", False,
-     "verificar nombre/numeración en DS 854"),
-    (4, "pronóstico", "ingreso: contribuciones sociales", False,
-     "verificar nombre/numeración en DS 854"),
-    (5, "pronóstico", "ingreso: transferencias", True, "GFSM 2014 cap. 5"),
-    (6, "pronóstico", "ingreso: rentas de la propiedad", True, "GFSM 2014 cap. 5"),
-    (7, "pronóstico", "ingreso: ventas de bienes y servicios", True, "GFSM 2014 cap. 5"),
-    (8, "pronóstico", "ingreso: otros", True, "GFSM 2014 cap. 5"),
-    (9, "interna", "transferencia interna (consolida en 0)", True,
-     "desaparece a nivel nacional"),
-    (10, "por verificar", "transacción en activos no financieros", False,
-     "GFS no lo cuenta como ingreso; verificar trato DIPRES"),
-    (11, "financiamiento", "bajo la línea: activos financieros", True,
-     "GFSM 2014 cap. 9; DIPRES Estado de Operaciones"),
-    (12, "financiamiento", "bajo la línea: activos financieros", True,
-     "GFSM 2014 cap. 9; DIPRES Estado de Operaciones"),
-    (13, "pronóstico", "ingreso: transferencias de capital", True, "GFSM 2014 cap. 5"),
-    (14, "financiamiento", "bajo la línea: pasivos", True,
-     "GFSM 2014 cap. 9; tope de endeudamiento en art. 3 de cada ley"),
-    (15, "contable", "saldo inicial de caja (no es flujo)", True,
-     "arrastre del año anterior"),
-], columns=["subtitulo", "naturaleza", "categoria_gfs", "verificado", "fundamento"])
+    {"subtitulo": sub, "nombre": nombre_subtitulo(sub),
+     "categoria_gfs": CONCORDANCIA_GFS.get(sub, (None, False))[0],
+     "gfs_verificado": CONCORDANCIA_GFS.get(sub, (None, False))[1],
+     "naturaleza": nat, "naturaleza_verificada": ver, "fundamento": fund}
+    for sub, (nat, ver, fund) in sorted(NATURALEZA_INGRESO.items())])
 
-PRONOSTICO = set(CONCORDANCIA.loc[CONCORDANCIA.naturaleza == "pronóstico", "subtitulo"])
 INGENUO = set(range(1, 16))
+GFS_INGRESOS = {s for s in INGENUO if es_ingreso_gfs(s)}
+PRONOSTICO = subtitulos_con_naturaleza(NAT_PRONOSTICO)
+# Para la contribución: lo contable y lo interno no son flujos proyectables
+SIN_CONTRIBUCION = subtitulos_con_naturaleza(NAT_CONTABLE) | \
+    subtitulos_con_naturaleza(NAT_INTERNA)
 
 
 def prueba_signo(errores: pd.Series) -> dict:
@@ -121,7 +104,9 @@ def errores(df: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == "__main__":
     reg = Registro("ingresos", salida_dir=DIRS["reportes"])
-    det = errores(cargar().merge(CONCORDANCIA, on="subtitulo", how="left"))
+    det = errores(cargar().merge(
+        CONCORDANCIA[["subtitulo", "categoria_gfs", "naturaleza"]],
+        on="subtitulo", how="left"))
     sin_concordancia = sorted(set(det[det.naturaleza.isna()].subtitulo))
     if sin_concordancia:
         reg.warn("ingresos", f"subtítulos sin concordancia: {sin_concordancia}")
@@ -130,7 +115,8 @@ if __name__ == "__main__":
     filas = []
     for (anio, mon), g in det.groupby(["anio", "moneda"]):
         for nombre, subs in (("ingenuo_01_15", INGENUO),
-                             ("pronostico_gfs", PRONOSTICO),
+                             ("ingreso_gfs", GFS_INGRESOS),
+                             ("pronostico", PRONOSTICO),
                              ("impuestos_01", {1})):
             x = g[g.subtitulo.isin(subs)]
             ini, ejec = x.inicial.sum(), x.ejecutado.sum()
@@ -156,9 +142,27 @@ if __name__ == "__main__":
                         **prueba_signo(g.error_vs_inicial)})
     prs = pd.DataFrame(pruebas)
 
+    # Contribución en pesos al error total (antes 09_contribucion_sesgo)
+    x = det[~det.subtitulo.isin(SIN_CONTRIBUCION)].copy()
+    x["error"] = x.ejecutado - x.inicial
+    con = []
+    for mon, g in x.groupby("moneda"):
+        tot_err, tot_ley = g.error.sum(), g.inicial.sum()
+        for (sub, nat), h in g.groupby(["subtitulo", "naturaleza"]):
+            con.append({"moneda": mon, "subtitulo": sub, "naturaleza": nat,
+                        "nombre": h.nombre_subtitulo.iloc[0],
+                        "inicial": h.inicial.sum(), "error": h.error.sum(),
+                        "error_propio_pct": 100 * h.error.sum() / h.inicial.sum()
+                        if h.inicial.sum() else np.nan,
+                        "aporte_al_error_pct": 100 * h.error.sum() / tot_err,
+                        "peso_en_ley_pct": 100 * h.inicial.sum() / tot_ley})
+    con = pd.DataFrame(con).sort_values(["moneda", "aporte_al_error_pct"],
+                                        ascending=[True, False])
+
     SALIDA.mkdir(parents=True, exist_ok=True)
     for nombre, df in (("detalle", det), ("concordancia", CONCORDANCIA),
-                       ("agregados", agr), ("prueba_signo", prs)):
+                       ("agregados", agr), ("prueba_signo", prs),
+                       ("contribucion", con)):
         df.to_csv(SALIDA / f"ingresos_{nombre}.csv", index=False, encoding="utf-8")
 
     anios = sorted(det.anio.unique())
@@ -171,7 +175,7 @@ if __name__ == "__main__":
     print(f"\n{'─' * 78}\n  Agregados en pesos: lo que cambia al separar\n")
     print(f"  {'Agregado':<18}{'n':>3}{'sub':>5}{'sobre':>6}{'p':>8}"
           f"{'error medio':>13}{'mediano':>10}{'peso':>8}")
-    for a in ("ingenuo_01_15", "pronostico_gfs", "impuestos_01"):
+    for a in ("ingenuo_01_15", "ingreso_gfs", "pronostico", "impuestos_01"):
         r = prs[(prs.moneda == "PESOS") & (prs.clave == a)].iloc[0]
         peso = agr[(agr.moneda == "PESOS") & (agr.agregado == a)].peso_en_ingenuo.mean()
         print(f"  {a:<18}{r.n:>3}{r.subestima:>5}{r.sobreestima:>6}"
@@ -188,12 +192,25 @@ if __name__ == "__main__":
               f"{r.subestima:>4}/{r.sobreestima:<5}{r.p_valor:>8.4f}"
               f"{r.error_medio_pct:>+12.1f}%")
 
+    c = con[con.moneda == "PESOS"]
+    print(f"\n{'─' * 78}\n  Contribución EN PESOS al error total, {anios[0]}-{anios[-1]}"
+          f" (sin contable ni interna)\n")
+    print(f"  {'Sub':>3} {'Nombre':<30}{'Naturaleza':<14}{'% de la ley':>12}"
+          f"{'error propio':>14}{'aporte':>9}")
+    for r in c.itertuples():
+        print(f"  {r.subtitulo:>3} {str(r.nombre)[:29]:<30}{r.naturaleza:<14}"
+              f"{r.peso_en_ley_pct:>11.1f}%{r.error_propio_pct:>+13.1f}%"
+              f"{r.aporte_al_error_pct:>8.1f}%")
+    por_nat = c.groupby("naturaleza")[["inicial", "error"]].sum()
+    print("\n  Por naturaleza: " + " · ".join(
+        f"{n.lower()} {100 * r.error / c.error.sum():.0f}% del error "
+        f"({100 * r.error / r.inicial:+.1f}% propio)" for n, r in por_nat.iterrows()))
+
     ag = agr[agr.moneda == "PESOS"].pivot(index="anio", columns="agregado", values="inicial")
-    peso_imp = 100 * (ag.impuestos_01 / ag.pronostico_gfs).mean()
+    peso_imp = 100 * (ag.impuestos_01 / ag.pronostico).mean()
     print(f"\n  Nota: impuestos es ~{peso_imp:.0f}% del agregado de pronóstico, así que")
     print("  su prueba del signo no es evidencia independiente de la de impuestos:")
     print("  muestra que, con el perímetro correcto, el sesgo agregado desaparece.")
-    pend = CONCORDANCIA[~CONCORDANCIA.verificado]
-    print(f"\n  Concordancia por verificar: subs {list(pend.subtitulo)} "
-          f"(ver ingresos_concordancia.csv)")
+    pend = CONCORDANCIA[~CONCORDANCIA.naturaleza_verificada]
+    print(f"\n  Naturaleza por verificar (dominio.py): subs {list(pend.subtitulo)}")
     reg.emitir()

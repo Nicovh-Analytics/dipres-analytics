@@ -316,3 +316,134 @@ AJUSTES_INGRESO_GFS = {
     14: "Financiamiento → Pasivos Netos Incurridos",
     15: "Saldo contable de apertura, no es transacción",
 }
+
+
+# =====================================================
+# NATURALEZA DE ley_inicial EN INGRESOS
+# =====================================================
+# Segunda dimensión, independiente de GFS. GFS responde "¿es ingreso o
+# financiamiento?"; esta responde "¿qué significa el monto que aprueba la
+# ley?". Sin separarlas, una prueba de sesgo mezcla pronósticos con
+# montos que nadie intenta pronosticar.
+#
+#   PRONOSTICO      estimación de lo que entrará; su error SÍ mide la
+#                   calidad de la proyección
+#   DISCRECIONAL    depende de decisiones u operaciones del año (ventas de
+#                   activos, dividendos, convenios); se consigna por
+#                   convención y es volátil por naturaleza
+#   AUTORIZACION    monto autorizado para financiar el presupuesto; no es
+#                   un pronóstico sino un margen
+#   CONTABLE        arrastre de caja, no es un flujo del año
+#   INTERNA         transferencia del Tesoro, se elimina al consolidar
+
+NAT_PRONOSTICO = "PRONOSTICO"
+NAT_DISCRECIONAL = "DISCRECIONAL"
+NAT_AUTORIZACION = "AUTORIZACION"
+NAT_CONTABLE = "CONTABLE"
+NAT_INTERNA = "INTERNA"
+
+# (naturaleza, verificado_en_fuente, fundamento)
+# verificado=True  → respaldado en norma o documentación oficial
+# verificado=False → criterio del proyecto, a confirmar
+NATURALEZA_INGRESO = {
+    1:  (NAT_PRONOSTICO,   True,  "DIPRES publica la metodología de proyección tributaria"),
+    3:  (NAT_PRONOSTICO,   False, "criterio del proyecto"),
+    4:  (NAT_PRONOSTICO,   False, "criterio del proyecto; subestimado 9/9 años (18)"),
+    5:  (NAT_PRONOSTICO,   False, "criterio del proyecto"),
+    6:  (NAT_DISCRECIONAL, False, "intereses y traspasos de empresas públicas (p. ej. "
+                                  "Codelco): dependen del cobre y de su directorio"),
+    7:  (NAT_PRONOSTICO,   False, "criterio del proyecto"),
+    8:  (NAT_PRONOSTICO,   False, "criterio del proyecto"),
+    9:  (NAT_INTERNA,      True,  "aporte fiscal: se elimina al consolidar"),
+    10: (NAT_DISCRECIONAL, False, "depende de ventas de inmuebles y bienes del año"),
+    11: (NAT_AUTORIZACION, False, "financiamiento (GFS); que opere como tope y no "
+                                  "como estimación está por verificar"),
+    12: (NAT_PRONOSTICO,   False, "pagos de terceros que el Fisco no controla; "
+                                  "ejecución sobre vigente 9/9 años, +50% a +135% "
+                                  "sobre inicial (11)"),
+    13: (NAT_DISCRECIONAL, False, "traspasos sujetos a convenios del año"),
+    14: (NAT_AUTORIZACION, True,  "tope de endeudamiento en el art. 3 de cada ley "
+                                  "(en dólares)"),
+    15: (NAT_CONTABLE,     True,  "saldo inicial de caja: arrastre del año anterior"),
+}
+
+
+def naturaleza_ley(subtitulo) -> str | None:
+    """Naturaleza del monto de ley_inicial para un subtítulo de ingreso."""
+    e = NATURALEZA_INGRESO.get(int(subtitulo))
+    return e[0] if e else None
+
+
+def subtitulos_con_naturaleza(naturaleza: str) -> set[int]:
+    """Subtítulos de ingreso con una naturaleza dada (p. ej. NAT_PRONOSTICO)."""
+    return {s for s, (n, _, _) in NATURALEZA_INGRESO.items() if n == naturaleza}
+
+
+
+# ---------------------------------------------------------------------------
+# TIPO DE CAMBIO
+# ---------------------------------------------------------------------------
+# La ley no suma monedas: el Art. 1 presenta moneda nacional y moneda
+# extranjera (en dólares) por separado. Para llevar dólares a pesos hay dos
+# tasas distintas según qué se convierte:
+#
+#   TC_SUPUESTO   el que DIPRES supuso al armar el proyecto. Fuente: IFP del
+#                 3er trimestre del año ANTERIOR, cuadro de supuestos macro,
+#                 fila "Tipo de cambio ($/US$, promedio, valor nominal)",
+#                 columna del año presupuestado. Ej.: presupuesto 2024 →
+#                 IFP 3T23 → 832.  Se usa para la ley.
+#   TC_OBSERVADO  dólar observado promedio del año. Fuente: Banco Central,
+#                 BDE > Tipos de cambio > Dólar observado. Se usa para la
+#                 ejecución.
+#
+# Regla: comparar cada moneda en su propia unidad cuando se pueda; convertir
+# solo para cuadrar con un total oficial en pesos. Convertir ley y ejecución
+# con tasas distintas mete la sorpresa cambiaria dentro del error.
+#
+# Un año en None hace fallar la conversión a propósito (mejor un error que
+# sumar dólares sin convertir). Montos DIPRES en miles: miles_usd * tc =
+# miles de pesos.
+TC_SUPUESTO: dict[int, float | None] = {
+    2017: 670, 2018: 650, 2019: 636, 2020: 675, 2021: 766,
+    2022: 739, 2023: 850, 2024: 832, 2025: 962,
+    2026: 958,
+}
+
+
+TC_OBSERVADO: dict[int, float | None] = {
+    2017: 649, 2018: 640, 2019: 702, 2020: 792, 2021: 759,
+    2022: 872, 2023: 839, 2024: 943, 2025: 951, 2026: None,   # año en curso: promedio a la fecha del último corte
+}
+
+_TASAS = {"supuesto": TC_SUPUESTO, "observado": TC_OBSERVADO}
+
+
+def tipo_cambio(anio, tasa: str) -> float:
+    """Tipo de cambio del año; `tasa` = "supuesto" u "observado"."""
+    tc = _TASAS[tasa].get(int(anio))
+    if tc is None:
+        raise KeyError(f"Falta TC_{tasa.upper()}[{int(anio)}] en dominio.py")
+    return tc
+
+
+def a_pesos(df, columnas, tasa: str, col_anio="Año", col_moneda="Moneda"):
+    """Copia de df con `columnas` en miles de pesos: las filas DOLARES se
+    multiplican por el tipo de cambio (`tasa`) de su año. Agrega la columna
+    `tc` (1 para PESOS) para que la conversión quede trazable."""
+    out = df.copy()
+    es_usd = out[col_moneda].str.upper().eq("DOLARES")
+    out["tc"] = 1.0
+    out.loc[es_usd, "tc"] = out.loc[es_usd, col_anio].map(
+        lambda a: tipo_cambio(a, tasa))
+    out[list(columnas)] = out[list(columnas)].mul(out["tc"], axis=0)
+    return out
+
+
+def desvio_tipo_cambio():
+    """Supuesto vs observado por año (solo años con ambos ingresados)."""
+    import pandas as pd
+    filas = [(a, s, TC_OBSERVADO.get(a)) for a, s in TC_SUPUESTO.items()
+             if s is not None and TC_OBSERVADO.get(a) is not None]
+    d = pd.DataFrame(filas, columns=["Año", "supuesto", "observado"])
+    d["desvio_pct"] = (d["observado"] / d["supuesto"] - 1) * 100
+    return d
