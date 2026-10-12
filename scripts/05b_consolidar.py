@@ -28,14 +28,18 @@ Lectura de crudos (correcciones respecto del 05):
     asignación válida, la fila NO se carga y queda registrada
   - programa/ejecución: Sub-Asignación se colapsa (suma) antes del cruce;
     ejecucion_programa.csv la conserva
+  - ley: línea repetida (mismas claves y nombres) donde una copia trae
+    EXACTAMENTE el doble de la otra → se descarta la doble y se registra
+    (error de la fuente visto en ley 2020-01 y en 2017; ver _log). Claves
+    repetidas con nombres distintos son líneas reales y se mantienen
 
 Se procesa mes a mes y se escribe en modo append: memoria acotada aunque
 ejecucion_programa pese ~900 MB.
 
 Uso:
     python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2
-    python 05b_consolidar.py --salida ...\\consolidado_v2 --niveles nacional partida
-    python 05b_consolidar.py --salida ...\\consolidado_v2 --verificar ...\\consolidado
+    python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2 --niveles nacional partida
+    python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2 --verificar D:\\dipres-datos\\processed\\consolidado
 
 --verificar compara contra los consolidados de referencia: familias
 idénticas, y cruce sin solo_ejecucion idéntico al de referencia.
@@ -197,6 +201,28 @@ def leer_crudo(ruta: Path, familia: str, log: dict,
     return df
 
 
+def quitar_duplicado_doble(df: pd.DataFrame, nivel: str, log: dict) -> pd.DataFrame:
+    """Ley: de un par de líneas idénticas en claves y nombres donde una
+    trae el doble de ley_inicial (y de ley_vigente) que la otra, se
+    descarta la doble. Tolerancia: 1 (miles)."""
+    grupo = keys_de_nivel(nivel) + [c for c in df.columns if c.startswith("Nombre")]
+    grupo = [c for c in grupo if c in df.columns]
+    g = df.groupby(grupo, dropna=False, sort=False)
+    n = g["ley_inicial"].transform("size")
+    if not (n == 2).any():
+        return df
+    cond = n == 2
+    for col in MONTO_FAMILIA["ley"]:
+        mn, mx = g[col].transform("min"), g[col].transform("max")
+        cond &= ((mx - 2 * mn).abs() <= 1) & (df[col] == mx)
+    ini_min = g["ley_inicial"].transform("min")
+    cond &= ini_min > 0          # el doble se reconoce en un monto positivo
+    if cond.any():
+        caidas = df.loc[cond, grupo + ["ley_inicial"]]
+        log["duplicado_doble"] = caidas.astype(str).to_dict("records")
+    return df[~cond]
+
+
 # =====================================================
 # Cruce
 # =====================================================
@@ -266,6 +292,8 @@ def consolidar_nivel(nivel: str, salida: Path, reg: Registro) -> dict:
                 continue
             log = {"archivo": f"{fam}/{anio}/{mes}/{nivel}.csv"}
             df = leer_crudo(ruta, fam, log, anio, mes)
+            if df is not None and fam == "ley":
+                df = quitar_duplicado_doble(df, nivel, log)
             logs.append(log)
             if df is not None:
                 anexar(df, rutas[fam], primero[fam])
@@ -294,6 +322,7 @@ def consolidar_nivel(nivel: str, salida: Path, reg: Registro) -> dict:
     resumen["delimitador_final"] = sum(l.get("delimitador_final", 0) for l in logs)
     resumen["no_reparables"] = sum(len(l.get("no_reparables", [])) for l in logs)
     resumen["errores"] = [l for l in logs if l.get("error")]
+    resumen["duplicado_doble"] = sum(len(l.get("duplicado_doble", [])) for l in logs)
     resumen["mes_corregido"] = [f"{l['archivo']}: {l['mes_columna']}"
                                 for l in logs if "mes_columna" in l]
     resumen["anio_corregido"] = [f"{l['archivo']}: {l['anio_columna']}"
@@ -305,6 +334,10 @@ def consolidar_nivel(nivel: str, salida: Path, reg: Registro) -> dict:
         reg.warn("consolidar", f"{nivel}: {resumen['no_reparables']} filas no "
                  f"reparables (ver _log_consolidar_{nivel}.json)",
                  patron="fila cruda no reparable")
+    if resumen["duplicado_doble"]:
+        reg.warn("consolidar", f"{nivel}: {resumen['duplicado_doble']} líneas de ley "
+                 f"duplicadas al doble descartadas (ver _log_consolidar_{nivel}.json)",
+                 patron="línea de ley duplicada al doble")
     if origen_tot["solo_ejecucion"]:
         reg.warn("consolidar", f"{nivel}: {origen_tot['solo_ejecucion']} filas de "
                  f"ejecución sin línea de ley", patron="ejecución sin ley")

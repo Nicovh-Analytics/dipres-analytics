@@ -5,117 +5,93 @@ Construye un catálogo de todos los códigos usados por año,
 identificando cuáles se agregan y cuáles desaparecen entre
 períodos.
 
-Salida:
+Salida (DIRS["consolidado"]):
   - diccionario_clasificadores.csv → catálogo completo con vigencia
   - cambios_clasificadores.csv → log de agregaciones y eliminaciones por año
 
 Uso:
-    python 09_diccionario_clasificadores.py
+    python 07_diccionario.py
 """
 
 import pandas as pd
-from pathlib import Path
 
-DATOS_DIR = Path("D:/dipres-datos/consolidado")
+from config import DIRS
+
+DATOS_DIR = DIRS["consolidado"]
+
+# Columnas que usan los niveles de abajo: se lee solo esto (el archivo de
+# programa es grande)
+COLUMNAS = ["Año", "Partida", "Capítulo", "Programa", "Subtítulo", "Item",
+            "Asignación", "Nombre Partida", "Nombre Capítulo",
+            "Nombre Programa", "Nombre Subtítulo", "Nombre Item",
+            "Nombre Asignación"]
 
 
 def cargar(nombre):
     ruta = DATOS_DIR / nombre
     if not ruta.exists():
-        print(f"  ❌ No encontrado: {nombre}")
+        print(f"  ❌ No encontrado: {ruta}")
         return None
-    return pd.read_csv(ruta, encoding="utf-8-sig", low_memory=False)
+    return pd.read_csv(ruta, encoding="utf-8-sig", low_memory=False,
+                       usecols=lambda c: c in COLUMNAS)
 
 
 def construir_diccionario_nivel(df, nivel, campos_codigo, campos_nombre):
     """
-    Extrae combinaciones únicas de códigos por año y determina
-    primer y último año de aparición.
+    Combinaciones únicas de códigos (con su nombre) por año: primer y
+    último año de aparición, y log de códigos agregados/eliminados entre
+    años consecutivos.
     """
-    # Filtrar solo filas que tengan los campos de código informados
-    mask = pd.Series(True, index=df.index)
-    for campo in campos_codigo:
-        if campo in df.columns:
-            mask = mask & df[campo].notna() & (df[campo].astype(str).str.strip() != "")
+    codigos = [c for c in campos_codigo if c in df.columns]
+    nombres = [c for c in campos_nombre if c in df.columns]
 
-    df_filtrado = df[mask].copy()
-
-    if len(df_filtrado) == 0:
+    # Solo filas con todos los códigos informados
+    mask = df[codigos].notna().all(axis=1)
+    for c in codigos:
+        mask &= df[c].astype(str).str.strip() != ""
+    unicos = df.loc[mask, ["Año"] + codigos + nombres].drop_duplicates()
+    if unicos.empty:
         print(f"  Sin datos para nivel {nivel}")
         return None, None
 
-    # Campos disponibles
-    codigos = [c for c in campos_codigo if c in df_filtrado.columns]
-    nombres = [c for c in campos_nombre if c in df_filtrado.columns]
-
-    # Extraer combinaciones únicas por año
-    cols = ["Año"] + codigos + nombres
-    unicos = df_filtrado[cols].drop_duplicates()
-
-    # Diccionario: primer y último año de cada combinación
-    grupo = unicos.groupby(codigos + nombres).agg(
-        primer_año=("Año", "min"),
-        ultimo_año=("Año", "max"),
-        años_presente=("Año", "nunique"),
-    ).reset_index()
-
+    ultimo = df["Año"].max()
+    grupo = (unicos.groupby(codigos + nombres, dropna=False)
+                   .agg(primer_año=("Año", "min"), ultimo_año=("Año", "max"),
+                        años_presente=("Año", "nunique"))
+                   .reset_index())
     grupo["nivel"] = nivel
-    grupo["vigente_2026"] = grupo["ultimo_año"] == df["Año"].max()
+    grupo["vigente"] = grupo["ultimo_año"] == ultimo
 
     print(f"  {nivel}: {len(grupo):,} combinaciones únicas")
-    print(f"    Vigentes en {df['Año'].max()}: {grupo['vigente_2026'].sum():,}")
-    print(f"    Históricas (ya no aparecen): {(~grupo['vigente_2026']).sum():,}")
+    print(f"    Vigentes en {ultimo}: {grupo['vigente'].sum():,}")
+    print(f"    Históricas (ya no aparecen): {(~grupo['vigente']).sum():,}")
 
-    # Log de cambios año a año
+    # Un nombre por código y año (el primero), para el log
+    por_anio = unicos.drop_duplicates(["Año"] + codigos)
     cambios = []
-    años = sorted(unicos["Año"].unique())
+    años = sorted(por_anio["Año"].unique())
+    for ant, act in zip(años, años[1:]):
+        m = por_anio[por_anio["Año"] == ant].drop(columns="Año").merge(
+            por_anio[por_anio["Año"] == act].drop(columns="Año"),
+            on=codigos, how="outer", indicator=True,
+            suffixes=("_ant", "_act"))
+        for lado, tipo, suf in (("right_only", "AGREGADO", "_act"),
+                                ("left_only", "ELIMINADO", "_ant")):
+            x = m[m["_merge"] == lado]
+            if x.empty:
+                continue
+            x = x[codigos + [n + suf for n in nombres]].copy()
+            x.columns = codigos + nombres
+            x.insert(0, "nivel", nivel)
+            x.insert(0, "tipo_cambio", tipo)
+            x.insert(0, "año", act)
+            cambios.append(x)
+        n_ag = int((m["_merge"] == "right_only").sum())
+        n_el = int((m["_merge"] == "left_only").sum())
+        if n_ag or n_el:
+            print(f"    {ant} → {act}: +{n_ag} agregados, -{n_el} eliminados")
 
-    for i in range(1, len(años)):
-        año_ant = años[i - 1]
-        año_act = años[i]
-
-        codigos_ant = set(
-            unicos[unicos["Año"] == año_ant][codigos].apply(tuple, axis=1)
-        )
-        codigos_act = set(
-            unicos[unicos["Año"] == año_act][codigos].apply(tuple, axis=1)
-        )
-
-        agregados = codigos_act - codigos_ant
-        eliminados = codigos_ant - codigos_act
-
-        for cod in agregados:
-            fila = {"año": año_act, "tipo_cambio": "AGREGADO", "nivel": nivel}
-            for j, c in enumerate(codigos):
-                fila[c] = cod[j]
-            # Buscar nombre
-            match = unicos[(unicos["Año"] == año_act)]
-            for j, c in enumerate(codigos):
-                match = match[match[c].astype(str) == str(cod[j])]
-            if len(match) > 0 and nombres:
-                for n in nombres:
-                    fila[n] = match[n].values[0]
-            cambios.append(fila)
-
-        for cod in eliminados:
-            fila = {"año": año_act, "tipo_cambio": "ELIMINADO", "nivel": nivel}
-            for j, c in enumerate(codigos):
-                fila[c] = cod[j]
-            # Buscar nombre del año anterior
-            match = unicos[(unicos["Año"] == año_ant)]
-            for j, c in enumerate(codigos):
-                match = match[match[c].astype(str) == str(cod[j])]
-            if len(match) > 0 and nombres:
-                for n in nombres:
-                    fila[n] = match[n].values[0]
-            cambios.append(fila)
-
-        if agregados or eliminados:
-            print(f"    {año_ant} → {año_act}: +{len(agregados)} agregados, -{len(eliminados)} eliminados")
-
-    cambios_df = pd.DataFrame(cambios) if cambios else None
-
-    return grupo, cambios_df
+    return grupo, (pd.concat(cambios, ignore_index=True) if cambios else None)
 
 
 # =====================================================
@@ -129,9 +105,9 @@ if __name__ == "__main__":
     # Usar ejecución (tiene mayor completitud en clasificación)
     ejec = cargar("ejecucion_programa.csv")
     if ejec is None:
-        exit()
+        raise SystemExit(1)
 
-    print(f"\n  Años disponibles: {sorted(ejec['Año'].unique())}")
+    print(f"\n  Años disponibles: {sorted(int(a) for a in ejec['Año'].unique())}")
     print(f"  Total filas: {len(ejec):,}")
 
     resultados_dict = []

@@ -12,91 +12,41 @@ Objetivo:
 
 from io import StringIO
 import json
-from pathlib import Path
+
 import pandas as pd
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util import Retry
 
-# =====================================================
-# RUTA MADRE Y SUBDIRECTORIOS DEL PROYECTO
-# =====================================================
-# =====================================================
-# RUTA MADRE Y SUBDIRECTORIOS DEL PROYECTO
-# =====================================================
-BASE_DIR = Path(r"D:\dipres-datos")
+from config import CKAN, DIRS, IO
+from descarga import SESION
 
-# Carpetas del pipeline
-OUTPUT_DIR = BASE_DIR / "exploracion"        # Fase 1: CKAN y muestras
-CONSOLIDADO_DIR = BASE_DIR / "consolidado"   # Cruces y catalogos
-DATOS_LIMPIOS_DIR = BASE_DIR / "clean"       # Salida de limpieza
-
-# Crear automáticamente los directorios base si no existen
+OUTPUT_DIR = DIRS["exploracion"]
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-CONSOLIDADO_DIR.mkdir(parents=True, exist_ok=True)
 
-# API CKAN
-CKAN_BASE = "https://datos.gob.cl/api/3/action"
-
-# Headers de navegador estándar para prevenir bloqueos por WAF/Cloudflare
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/html, */*",
-}
 
 def separador(titulo: str):
     print(f"\n{'='*70}\n  {titulo}\n{'='*70}\n")
 
 
-def crear_sesion_robusta() -> requests.Session:
-    session = requests.Session()
-    # Estrategia de reintento: hasta 3 veces, esperando 1s, 2s, 4s...
-    retries = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        raise_on_status=False
-    )
-    adapter = HTTPAdapter(max_retries=retries)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    return session
-
 # =============================================================
 # 1. DATOS.GOB.CL — CKAN API CON PAGINACIÓN COMPLETA
 # =============================================================
-def explorar_ckan(max_por_termino: int = 200) -> dict:
+def explorar_ckan(max_por_termino: int = CKAN["max_por_termino"]) -> dict:
     separador("DATOS.GOB.CL — Búsqueda paginada en API CKAN")
 
-    queries = [
-        "presupuesto",
-        "ejecución presupuestaria",
-        "gasto público",
-        "ley de presupuestos",
-        "DIPRES",
-    ]
+    queries = CKAN["queries"]
 
     todos_los_datasets = {}
 
     for q in queries:
         print(f"🔍 Buscando término: '{q}'")
         start = 0
-        rows = 50
+        rows = CKAN["rows_por_pagina"]
         total_encontrados_query = 0
 
         while start < max_por_termino:
             params = {"q": q, "rows": rows, "start": start}
             try:
-                resp = requests.get(
-                    f"{CKAN_BASE}/package_search",
-                    params=params,
-                    headers=HEADERS,
-                    timeout=30,
-                )
+                resp = SESION.get(f"{CKAN['base_url']}/package_search",
+                                  params=params, timeout=30)
                 resp.raise_for_status()
                 data = resp.json().get("result", {})
                 results = data.get("results", [])
@@ -121,10 +71,10 @@ def explorar_ckan(max_por_termino: int = 200) -> dict:
                         todos_los_datasets[ds_id] = {
                             "id": ds_id,
                             "nombre": ds.get("title", ""),
-                            "organizacion": ds.get("organization", {}).get(
+                            "organizacion": (ds.get("organization") or {}).get(
                                 "title", ""
                             ),
-                            "descripcion": ds.get("notes", "")[:250].replace(
+                            "descripcion": (ds.get("notes") or "")[:250].replace(
                                 "\n", " "
                             ),
                             "n_recursos": len(recursos),
@@ -191,7 +141,7 @@ def inspeccionar_recurso_csv(url: str, nombre: str = "muestra") -> pd.DataFrame 
 
     try:
         # Context manager 'with' para cerrar la conexión HTTP inmediatamente tras el break
-        with requests.get(url, headers=HEADERS, timeout=30, stream=True) as resp:
+        with SESION.get(url, timeout=30, stream=True) as resp:
             resp.raise_for_status()
             
             lineas_raw = []
@@ -210,7 +160,7 @@ def inspeccionar_recurso_csv(url: str, nombre: str = "muestra") -> pd.DataFrame 
     # Intentar decodificación de bytes a texto
     contenido_txt = None
     enc_exitoso = None
-    for enc in ["utf-8-sig", "latin-1", "utf-8"]:
+    for enc in IO["encodings"]:   # latin-1 último: nunca falla
         try:
             contenido_txt = contenido_bytes.decode(enc)
             enc_exitoso = enc
@@ -224,7 +174,7 @@ def inspeccionar_recurso_csv(url: str, nombre: str = "muestra") -> pd.DataFrame 
 
     # Detección de delimitador predominante
     primera_linea = contenido_txt.splitlines()[0] if contenido_txt.splitlines() else ""
-    sep = ";" if primera_linea.count(";") >= primera_linea.count(",") else ","
+    sep = max(IO["separadores"], key=primera_linea.count)
 
     try:
         # Sin parámetro 'encoding' porque StringIO ya maneja cadenas decodificadas
@@ -233,7 +183,7 @@ def inspeccionar_recurso_csv(url: str, nombre: str = "muestra") -> pd.DataFrame 
             nrows=100,
             sep=sep,
             quotechar='"',
-            on_bad_lines="skip"
+            on_bad_lines="warn"
         )
     except Exception as e:
         print(f"❌ Error al cargar muestra con pandas: {e}")
@@ -267,7 +217,7 @@ def explorar_presupuesto_abierto():
 
     for url in urls:
         try:
-            resp = requests.get(url, headers=HEADERS, timeout=15, allow_redirects=True)
+            resp = SESION.get(url, timeout=15, allow_redirects=True)
             tipo_contenido = resp.headers.get("content-type", "N/A")
             print(f"• {url:<45s} → Status: {resp.status_code} | Tipo: {tipo_contenido}")
 
@@ -289,7 +239,7 @@ if __name__ == "__main__":
     print(f"Directorio de exportación: {OUTPUT_DIR.resolve()}\n")
 
     # 1. Búsqueda y catalogación completa en API CKAN
-    datasets = explorar_ckan(max_por_termino=150)
+    datasets = explorar_ckan()
 
     # 2. Sondeo de Presupuesto Abierto
     explorar_presupuesto_abierto()
@@ -314,13 +264,4 @@ if __name__ == "__main__":
         print("\nℹ️ No se detectó una URL directa de CSV para inspección inmediata.")
 
     separador("FASE 1 COMPLETADA CON ÉXITO")
-    print(f"Revisa los archivos generados en la carpeta '{OUTPUT_DIR.name}/'.")
-
-carpeta = Path("exploración").resolve()
-print(f"Ubicación absoluta: {carpeta}")
-print(f"¿Existe realmente?: {carpeta.exists()}")
-
-if carpeta.exists():
-    print("\nArchivos dentro de la carpeta:")
-    for archivo in carpeta.iterdir():
-        print(f"  • {archivo.name}")
+    print(f"Archivos generados en: {OUTPUT_DIR}")

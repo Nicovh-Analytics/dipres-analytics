@@ -4,7 +4,11 @@ Profiler y Documentador de Hallazgos — CSVs DIPRES
 - Audita de forma aislada por Familia x Nivel sin saturar RAM.
 - Distingue entre campos vacíos legítimos y delimitadores incrustados reales.
 - Tolera delimitadores terminales espurios (ej: ley 2017).
-- Genera reporte JSON y un documento en Markdown (HALLAZGOS_PROFILING.md).
+- Genera reporte JSON (DIRS["reportes"]) y un documento Markdown versionable
+  (DIRS["docs"]/HALLAZGOS_PROFILING.md).
+
+Uso:
+    python 04_perfilar.py
 """
 
 import json
@@ -13,13 +17,10 @@ import unicodedata
 from collections import Counter
 from pathlib import Path
 
-# =====================================================
-# CONFIGURACIÓN
-# =====================================================
-DATOS_DIR = Path("D:/dipres-datos")
+from config import DIRS, IO
+from dominio import NIVELES
+
 FAMILIAS = ["ley", "ejecucion"]
-NIVELES = ["partida", "capitulo", "programa"]
-ENCODINGS = ["utf-8-sig", "latin-1"]
 
 # =====================================================
 # 1. NORMALIZACIÓN UNIVERSAL DE ENCABEZADOS
@@ -50,18 +51,17 @@ def canonizar_columna(col: str, familia: str) -> str:
 # =====================================================
 # 2. DETECCIÓN DE FORMATO Y LECTURA
 # =====================================================
-def detectar_formato(ruta: Path) -> dict | None:
-    for encoding in ENCODINGS:
+def leer_texto(ruta: Path) -> tuple[str, str] | None:
+    """(texto, encoding) decodificando el archivo COMPLETO: un carácter
+    cp1252 en la fila 10.000 no se ve leyendo solo la primera línea."""
+    crudo = ruta.read_bytes()
+    for enc in IO["encodings"][:-1]:     # sin latin-1: nunca falla
         try:
-            with open(ruta, "r", encoding=encoding) as f:
-                linea = f.readline()
-                if not linea.strip():
-                    continue
-                sep = ";" if linea.count(";") >= linea.count(",") else ","
-                return {"encoding": encoding, "separador": sep, "header": linea}
+            return crudo.decode(enc), enc
         except UnicodeDecodeError:
             continue
     return None
+
 
 def perfilar_archivo(ruta: Path, familia: str) -> dict:
     res = {
@@ -75,51 +75,42 @@ def perfilar_archivo(ruta: Path, familia: str) -> dict:
         "firma": ()
     }
 
-    formato = detectar_formato(ruta)
-    if not formato:
-        res["error"] = "Fallo de decodificación (probado utf-8-sig y latin-1)"
+    leido = leer_texto(ruta)
+    if leido is None:
+        res["error"] = f"no decodifica con {IO['encodings'][:-1]}"
         return res
-
-    sep = formato["separador"]
-    enc = formato["encoding"]
+    texto, enc = leido
+    res["encoding"] = enc
 
     try:
-        with open(ruta, "r", encoding=enc) as f:
-            header_raw = f.readline()
-            header_limpio = header_raw.rstrip("\r\n").rstrip(sep)
-            
-            columnas_raw = [c.strip() for c in header_limpio.split(sep)]
-            res["columnas_vacias_header"] = sum(1 for c in columnas_raw if c == "")
-            n_esperado = len(columnas_raw)
+        lineas = texto.splitlines()
+        header_raw = lineas[0] if lineas else ""
+        sep = max(IO["separadores"], key=header_raw.count)
+        res["separador"] = sep
+        columnas_raw = [c.strip() for c in header_raw.rstrip(sep).split(sep)]
+        res["columnas_vacias_header"] = sum(1 for c in columnas_raw if c == "")
+        n_esperado = len(columnas_raw)
+        res["firma"] = tuple(canonizar_columna(c, familia) if c else "<columna_vacia>"
+                             for c in columnas_raw)
+        res["total_columnas"] = n_esperado
 
-            firma = tuple(canonizar_columna(c, familia) if c else "<columna_vacia>" for c in columnas_raw)
-            res["firma"] = firma
-            res["total_columnas"] = n_esperado
+        total = rotas = trailing = 0
+        for linea in lineas[1:]:
+            if not linea.strip():
+                continue
+            total += 1
+            # Sin rstrip(sep): no amputar campos vacíos válidos al final
+            campos = linea.split(sep)
+            if len(campos) == n_esperado:
+                continue
+            if len(campos) == n_esperado + 1 and campos[-1] == "":
+                trailing += 1   # delimitador sobrante al final (ley 2017)
+            else:
+                rotas += 1
 
-            total_lineas = 0
-            lineas_rotas = 0
-            trailing_delimiters = 0
-
-            for linea in f:
-                if not linea.strip():
-                    continue
-                total_lineas += 1
-                
-                # Sin rstrip(sep) para no amputar campos vacíos válidos al final
-                campos = linea.rstrip("\r\n").split(sep)
-                n_campos = len(campos)
-
-                if n_campos == n_esperado:
-                    continue
-                # Caso: Fila con delimitador sobrante al final (ej. ley 2017)
-                elif n_campos == n_esperado + 1 and campos[-1] == "":
-                    trailing_delimiters += 1
-                else:
-                    lineas_rotas += 1
-
-            res["total_lineas"] = total_lineas
-            res["lineas_rotas"] = lineas_rotas
-            res["trailing_delimiter_detectado"] = trailing_delimiters > 0
+        res["total_lineas"] = total
+        res["lineas_rotas"] = rotas
+        res["trailing_delimiter_detectado"] = trailing > 0
 
     except Exception as e:
         res["error"] = f"Excepción durante lectura: {e}"
@@ -132,7 +123,7 @@ def perfilar_archivo(ruta: Path, familia: str) -> dict:
 def exportar_markdown_hallazgos(resumen_segmentos: list[dict], ruta_md: Path):
     lineas = [
         "# Hallazgos y Ficha Técnica de Estructura — Datos DIPRES\n",
-        "> Documento generado automáticamente por `04_profiler.py` para versionar contratos de datos.\n",
+        "> Documento generado automáticamente por `04_perfilar.py` para versionar contratos de datos.\n",
         "## 1. Resumen de Anomalías Estructurales Identificadas\n",
         "- **Delimitadores incrustados en texto**: Se presentan en archivos `programa.csv` dentro de la columna `Nombre Asignación`. Requiere reparación determinista en memoria fusionando campos centrales.",
         "- **Variación léxica de flujos**: En la familia `ejecucion`, la preposición `de` denota flujo mensual (`ejecucion_mes`), mientras que `a` denota saldo acumulado (`ejecucion_acumulada`).",
@@ -169,7 +160,7 @@ def ejecutar_profiling():
     print("=" * 80)
 
     for fam in FAMILIAS:
-        dir_familia = DATOS_DIR / fam
+        dir_familia = DIRS[fam]
         if not dir_familia.exists():
             continue
 
@@ -203,14 +194,14 @@ def ejecutar_profiling():
             })
 
     # Guardar catálogo JSON
-    salida_json = DATOS_DIR / "consolidado" / "catalogo_profiling.json"
+    salida_json = DIRS["reportes"] / "catalogo_profiling.json"
     salida_json.parent.mkdir(parents=True, exist_ok=True)
     with open(salida_json, "w", encoding="utf-8") as f:
         exportable = [{k: (list(v) if isinstance(v, tuple) else v) for k, v in p.items()} for p in catalogo_completo]
         json.dump(exportable, f, ensure_ascii=False, indent=2)
 
     # Guardar Markdown para Git
-    salida_md = DATOS_DIR / "consolidado" / "HALLAZGOS_PROFILING.md"
+    salida_md = DIRS["docs"] / "HALLAZGOS_PROFILING.md"
     exportar_markdown_hallazgos(resumen_segmentos, salida_md)
 
     print(f"\n{'='*80}")

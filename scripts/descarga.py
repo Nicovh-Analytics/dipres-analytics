@@ -4,7 +4,9 @@ descarga.py — Funciones compartidas por los scripts de descarga (02, 03)
   buscar_ckan          búsqueda paginada en datos.gob.cl
   descargar_archivo    descarga atómica: escribe en <archivo>.part, valida
                        y recién entonces renombra. Un archivo final nunca
-                       queda a medias.
+                       queda a medias. Si reemplaza uno existente, el
+                       anterior se guarda en _versiones/ (DIPRES corrige
+                       datos ya publicados: es evidencia, no basura)
   tamano_remoto        Content-Length vía HEAD, para auditar archivos
                        descargados antes de existir el .part
   LogDescarga          log JSON resumible, escrito de forma atómica
@@ -77,6 +79,21 @@ def _esperado(resp: requests.Response) -> int | None:
     return int(cl)
 
 
+def respaldar(destino: Path) -> Path:
+    """Mueve `destino` a <carpeta>/_versiones/<nombre>.<AAAAMMDD><ext>,
+    con la fecha de la descarga anterior (mtime)."""
+    fecha = datetime.fromtimestamp(destino.stat().st_mtime).strftime("%Y%m%d")
+    carpeta = destino.parent / "_versiones"
+    carpeta.mkdir(exist_ok=True)
+    nuevo = carpeta / f"{destino.stem}.{fecha}{destino.suffix}"
+    k = 2
+    while nuevo.exists():
+        nuevo = carpeta / f"{destino.stem}.{fecha}_{k}{destino.suffix}"
+        k += 1
+    os.replace(destino, nuevo)
+    return nuevo
+
+
 def descargar_archivo(url: str, destino: Path) -> tuple[bool, str | None]:
     """Descarga atómica con reintentos. (ok, motivo_error)."""
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -103,6 +120,9 @@ def descargar_archivo(url: str, destino: Path) -> tuple[bool, str | None]:
             elif escritos < TAMANO_MINIMO:
                 motivo = f"archivo muy pequeño ({escritos} bytes)"
             else:
+                if destino.exists():
+                    anterior = respaldar(destino)
+                    print(f"   ↳ versión anterior en {anterior.parent.name}/{anterior.name}")
                 os.replace(parcial, destino)   # atómico en el mismo disco
                 return True, None
         except Exception as e:

@@ -16,48 +16,41 @@ Checks:
   9. Encoding consistente entre archivos fuente
 
 Uso:
-    python validation.py
+    python 06_validar.py
 """
 
+from collections import Counter
+
 import pandas as pd
-import numpy as np
-from pathlib import Path
+
+from config import DIRS, IO, TOLERANCIAS
+from dominio import (MES_A_NUM, MESES, NIVELES, SUBTITULOS_TRANSFERENCIA,
+                     keys_de_nivel)
 from hallazgos import Registro
-from config import DIRS, TOLERANCIAS
-from dominio import MESES, NIVELES, keys_de_nivel
+from utils import leer_csv_robusto
 
 reg = Registro("validacion", salida_dir=DIRS["reportes"])
 
-
-# Importar lector robusto
-try:
-    from utils import leer_csv_robusto
-    TIENE_UTILS = True
-except ImportError:
-    TIENE_UTILS = False
-
-# =====================================================
-# CONFIGURACIÓN
-# =====================================================
 CONSOLIDADO_DIR = DIRS["consolidado"]
-
 MESES_ORDEN = MESES
 
-NIVELES = ["nacional", "partida", "capitulo", "programa"]
-
 resultados = {"errores": 0, "advertencias": 0, "ok": 0}
+_cache: dict[str, pd.DataFrame | None] = {}
 
 
 # =====================================================
 # UTILIDADES
 # =====================================================
 def error(msg):
+    resultados["errores"] += 1
     reg.error("general", msg)
 
 def advertencia(msg):
+    resultados["advertencias"] += 1
     reg.warn("general", msg)
 
 def ok(msg):
+    resultados["ok"] += 1
     reg.ok("general", msg)
 
 def info(msg):
@@ -65,26 +58,38 @@ def info(msg):
 
 
 def cargar(nombre):
-    """Carga un CSV consolidado usando detección automática de formato."""
+    """Carga un CSV consolidado (una sola vez: queda en caché)."""
+    if nombre in _cache:
+        return _cache[nombre]
     ruta = CONSOLIDADO_DIR / nombre
+    df = None
     if not ruta.exists():
         error(f"Archivo no encontrado: {nombre}")
-        return None
-
-    if TIENE_UTILS:
+    else:
         try:
-            df, fmt = leer_csv_robusto(str(ruta))
+            # estricto: un consolidado no debería traer filas mal formadas
+            df, _ = leer_csv_robusto(str(ruta), estricto=True)
         except Exception as e:
             error(f"No se pudo leer {nombre}: {e}")
-            return None
-    else:
-        df = pd.read_csv(ruta, encoding="utf-8-sig", low_memory=False)
-
-    if "Año" not in df.columns:
-        error(f"{nombre}: falta columna 'Año'. Detectadas: {list(df.columns)[:5]}")
-        return None
-
+        if df is not None and "Año" not in df.columns:
+            error(f"{nombre}: falta columna 'Año'. Detectadas: {list(df.columns)[:5]}")
+            df = None
+    _cache[nombre] = df
     return df
+
+
+def contar_filas(nombre, claves=None):
+    """Filas de un consolidado sin cargarlo entero. Con `claves`, cuenta
+    combinaciones distintas (la ejecución de programa trae Sub-Asignación,
+    que el cruce suma en una fila)."""
+    ruta = CONSOLIDADO_DIR / nombre
+    if not ruta.exists():
+        return None
+    if claves is None:
+        return len(pd.read_csv(ruta, usecols=[0], encoding="utf-8-sig"))
+    df = pd.read_csv(ruta, usecols=lambda c: c in claves, encoding="utf-8-sig",
+                     low_memory=False)
+    return len(df.drop_duplicates())
 
 
 def separador(titulo):
@@ -137,7 +142,7 @@ def check_duplicados(df, nombre, nivel):
     n_dup = duplicados.sum()
 
     if n_dup > 0:
-        n_combis = n_dup // 2
+        n_combis = df.loc[duplicados, keys_presentes].drop_duplicates().shape[0]
         error(f"{n_dup} filas duplicadas ({n_combis} combinaciones) en keys {keys_presentes}")
         
         # Analizar origen
@@ -191,7 +196,11 @@ def check_anomalias(df, nombre):
         sin_ley = (df["ley_vigente"] == 0) & (df["ejecucion_acumulada"] != 0)
         n = sin_ley.sum()
         if n > 0:
-            advertencia(f"{n} filas con ley_vigente=0 pero ejecución>0")
+            detalle = ""
+            if "origen" in df.columns:
+                solo = int((sin_ley & (df["origen"] == "solo_ejecucion")).sum())
+                detalle = f" ({solo} sin línea en la ley: origen=solo_ejecucion)"
+            advertencia(f"{n} filas con ley_vigente=0 pero ejecución≠0{detalle}")
         else:
             ok("Sin filas con ley_vigente=0 y ejecución>0")
 
@@ -234,29 +243,24 @@ def check_valores_pegados(df, nombre):
         return
 
     keys_grupo = [c for c in ["Año", "Moneda", "Partida", "Subtítulo"] if c in df.columns]
+    n_pegue = TOLERANCIAS["meses_pegados"]
 
-    mes_a_num = {m: i + 1 for i, m in enumerate(MESES_ORDEN)}
-    df_work = df.copy()
-    df_work["MesNum"] = df_work["Mes"].map(mes_a_num)
-    df_work = df_work.sort_values(keys_grupo + ["MesNum"])
-
-    pegados = 0
-    total_grupos = 0
-
-    for _, grupo in df_work.groupby(keys_grupo):
-        if len(grupo) < 3:
-            continue
-
-        total_grupos += 1
-        ejec = grupo["ejecucion_acumulada"].values
-        for i in range(len(ejec) - 2):
-            if ejec[i] != 0 and ejec[i] == ejec[i + 1] == ejec[i + 2]:
-                pegados += 1
-                break
+    # Agregado por grupo y mes, ordenado; un grupo está "pegado" si tiene
+    # n_pegue meses consecutivos con el mismo acumulado distinto de 0
+    w = (df.assign(MesNum=df["Mes"].map(MES_A_NUM))
+           .groupby(keys_grupo + ["MesNum"], as_index=False)["ejecucion_acumulada"].sum()
+           .sort_values(keys_grupo + ["MesNum"]))
+    g = w.groupby(keys_grupo)["ejecucion_acumulada"]
+    igual = w["ejecucion_acumulada"] != 0
+    for k in range(1, n_pegue):
+        igual &= w["ejecucion_acumulada"] == g.shift(k)
+    tamanos = g.transform("size")
+    total_grupos = int(w.loc[tamanos >= n_pegue, keys_grupo].drop_duplicates().shape[0])
+    pegados = int(w.loc[igual, keys_grupo].drop_duplicates().shape[0])
 
     if pegados > 0:
         pct = pegados / total_grupos * 100
-        advertencia(f"{pegados}/{total_grupos} grupos ({pct:.1f}%) con 3+ meses consecutivos con misma ejecución")
+        advertencia(f"{pegados}/{total_grupos} grupos ({pct:.1f}%) con {n_pegue}+ meses consecutivos con misma ejecución")
     else:
         ok("Sin valores pegados detectados")
 
@@ -264,7 +268,7 @@ def check_valores_pegados(df, nombre):
 # =====================================================
 # CHECK 6 — Consistencia del cruce
 # =====================================================
-def check_cruce(cruce, ejec, ley, nombre_nivel):
+def check_cruce(cruce, n_ejec, n_ley, nombre_nivel):
     separador(f"CHECK 6 — Consistencia del cruce: {nombre_nivel}")
 
     if cruce is None:
@@ -294,17 +298,49 @@ def check_cruce(cruce, ejec, ley, nombre_nivel):
         else:
             ok("pct_ejecucion calculado correctamente")
 
-    # Conteo de filas vs ley
-    if ley is not None:
-        filas_ley = len(ley)
-        filas_cruce = len(cruce)
-        diff = filas_ley - filas_cruce
-        if diff > 0:
-            advertencia(f"Cruce tiene {diff} filas menos que ley ({filas_cruce} vs {filas_ley})")
-        elif diff < 0:
-            advertencia(f"Cruce tiene {abs(diff)} filas más que ley ({filas_cruce} vs {filas_ley})")
+    # Conteo de filas: el cruce es un outer join con columna `origen`
+    if "origen" not in cruce.columns:
+        advertencia("Cruce sin columna 'origen' (generado antes de 05b): "
+                    "no se puede verificar el conteo de filas")
+        return
+    n = cruce["origen"].value_counts()
+    ambos, s_ley, s_ejec = (int(n.get(k, 0)) for k in
+                            ("ambos", "solo_ley", "solo_ejecucion"))
+    info(f"origen: ambos {ambos:,} · solo_ley {s_ley:,} · solo_ejecucion {s_ejec:,}")
+    for n_arch, nombre, esperado in ((n_ley, "ley", ambos + s_ley),
+                                     (n_ejec, "ejecución", ambos + s_ejec)):
+        if n_arch is None:
+            continue
+        if n_arch == esperado:
+            ok(f"{nombre}: sus {n_arch:,} filas están todas en el cruce")
         else:
-            ok(f"Cruce y ley tienen la misma cantidad de filas ({filas_cruce})")
+            advertencia(f"{nombre}: {n_arch:,} filas en el archivo vs "
+                        f"{esperado:,} en el cruce")
+
+
+def hojas(df):
+    """Máscara de filas hoja. La ley a nivel programa trae subtotales:
+    fila de subtítulo (Item vacío) e ítem (Asignación vacía) además del
+    detalle; sumarlo todo cuenta dos o tres veces lo mismo."""
+    base = [c for c in ["Año", "Mes", "Moneda", "Partida", "Capítulo",
+                        "Programa", "Subtítulo"] if c in df.columns]
+    if "Item" not in df.columns:
+        return pd.Series(True, index=df.index)
+    # El detalle que convierte una fila en subtotal debe venir de la LEY:
+    # filas solo_ejecucion con asignación no cuentan (si no, una línea de
+    # ley a nivel ítem se descartaría por tener ejecución desagregada)
+    es_ley = (df["origen"] != "solo_ejecucion") if "origen" in df.columns \
+        else pd.Series(True, index=df.index)
+    item_na = df["Item"].isna()
+    tiene_items = (df.assign(_i=df["Item"].where(es_ley))
+                     .groupby(base)["_i"].transform("count") > 0)
+    sub_total = item_na & tiene_items
+    if "Asignación" in df.columns:
+        tiene_asig = (df.assign(_a=df["Asignación"].where(es_ley))
+                        .groupby(base + ["Item"], dropna=False)["_a"]
+                        .transform("count") > 0)
+        sub_total |= ~item_na & df["Asignación"].isna() & tiene_asig
+    return ~sub_total
 
 
 # =====================================================
@@ -312,6 +348,10 @@ def check_cruce(cruce, ejec, ley, nombre_nivel):
 #            de consolidación vs error)
 # =====================================================
 def check_coherencia(nivel_alto, nivel_bajo, nombre_alto, nombre_bajo, keys_extra=None, es_consolidacion=False):
+    """Las diferencias en subtítulos de transferencia se informan como
+    consolidación (transferencias entre unidades que el nivel alto elimina);
+    las demás, como error. La ley del nivel bajo se suma solo en sus filas
+    hoja (sin subtotales)."""
     separador(f"CHECK 7 — {'Consolidación' if es_consolidacion else 'Coherencia'}: {nombre_alto} vs {nombre_bajo}")
 
     if nivel_alto is None or nivel_bajo is None:
@@ -330,7 +370,14 @@ def check_coherencia(nivel_alto, nivel_bajo, nombre_alto, nombre_bajo, keys_extr
         advertencia("No hay campos de monto comunes para comparar")
         return
 
-    bajo_agrupado = nivel_bajo.groupby(keys_comunes, as_index=False)[campos_monto].sum()
+    bajo = nivel_bajo[keys_comunes + campos_monto].copy()
+    if "ley_vigente" in campos_monto:
+        es_hoja = hojas(nivel_bajo)
+        n_sub = int((~es_hoja).sum())
+        if n_sub:
+            info(f"{nombre_bajo}: {n_sub:,} filas de subtotal excluidas de ley_vigente")
+        bajo.loc[~es_hoja, "ley_vigente"] = 0
+    bajo_agrupado = bajo.groupby(keys_comunes, as_index=False)[campos_monto].sum()
 
     comp = pd.merge(
         nivel_alto[keys_comunes + campos_monto],
@@ -351,28 +398,41 @@ def check_coherencia(nivel_alto, nivel_bajo, nombre_alto, nombre_bajo, keys_extr
         comp[col_bajo] = comp[col_bajo].fillna(0)
 
         diff = (comp[col_alto] - comp[col_bajo]).abs()
-        problemas = diff > 1
+        problemas = diff > TOLERANCIAS["monto"]
         n_prob = problemas.sum()
         total = len(comp)
         pct_ok = (total - n_prob) / total * 100
 
         if n_prob > 0:
-            max_diff = diff[problemas].max()
-            
-            if es_consolidacion:
-                # Esperado: verificar que las diferencias son en subtítulos de transferencia
-                subs_afectados = comp.loc[problemas, "Subtítulo"].unique() if "Subtítulo" in comp.columns else []
-                subs_transf = [s for s in subs_afectados if int(s) in [5, 9, 13, 24, 27, 33]]
-                pct_transf = len(subs_transf) / len(subs_afectados) * 100 if len(subs_afectados) > 0 else 0
-                
-                info(f"{campo}: {n_prob} diferencias ({pct_ok:.1f}% cuadra) — consolidación esperada")
-                info(f"  {pct_transf:.0f}% de subtítulos afectados son de transferencia (esperado)")
-            else:
-                error(f"{campo}: {n_prob} discrepancias (máx: {max_diff:,.0f}, {pct_ok:.1f}% cuadra)")
-                ejemplos = comp[problemas].head(3)
-                for _, row in ejemplos.iterrows():
-                    ctx = " | ".join(f"{k}={row[k]}" for k in keys_comunes if k in row.index)
+            # Compatible con consolidación: subtítulo de transferencia, o
+            # (si el nivel alto consolida) el alto es menor que el bajo:
+            # consolidar solo elimina flujos internos, nunca agrega
+            transf = comp["Subtítulo"].astype(int).isin(SUBTITULOS_TRANSFERENCIA)
+            reduce = comp[col_alto].abs() < comp[col_bajo].abs()
+            compatible = problemas & (transf | (reduce if es_consolidacion else False))
+            otro = problemas & ~compatible
+            if compatible.any():
+                por_sub = (comp[compatible].groupby("Subtítulo").size()
+                           .sort_values(ascending=False))
+                subs = ", ".join(f"{int(k):02d}×{v}" for k, v in por_sub.head(8).items())
+                info(f"{campo}: {int(compatible.sum())} diferencias compatibles con "
+                     f"consolidación (subtítulo×casos: {subs})")
+            if otro.any():
+                max_diff = diff[otro].max()
+                pct_ok = (total - int(otro.sum())) / total * 100
+                error(f"{campo}: {int(otro.sum())} discrepancias no explicadas por "
+                      f"consolidación (máx: {max_diff:,.0f}, {pct_ok:.1f}% cuadra)")
+                por_mes = (comp[otro].groupby(["Año", "Mes"]).size()
+                           .sort_values(ascending=False).head(5))
+                print("    Año-Mes con más casos: " + ", ".join(
+                    f"{int(a)}-{m}×{n}" for (a, m), n in por_mes.items()))
+                por_sub = comp[otro].groupby("Subtítulo").size().sort_values(ascending=False).head(8)
+                print("    Subtítulos: " + ", ".join(f"{int(k):02d}×{v}" for k, v in por_sub.items()))
+                for _, row in comp[otro].head(3).iterrows():
+                    ctx = " | ".join(f"{k}={row[k]}" for k in keys_comunes)
                     print(f"    {ctx}: alto={row[col_alto]:,.0f} vs bajo={row[col_bajo]:,.0f}")
+            else:
+                ok(f"{campo}: toda diferencia es compatible con consolidación")
         else:
             ok(f"{campo}: 100% cuadra entre {nombre_alto} y {nombre_bajo}")
 
@@ -396,37 +456,40 @@ def check_estructura_filas(tipos=None):
             continue
 
         for csv_path in sorted(carpeta.rglob("*.csv")):
+            if "_versiones" in csv_path.parts:
+                continue
             archivos_revisados += 1
-
+            ruta_rel = csv_path.relative_to(DIRS["base"])
             try:
+                # Línea a línea: no cargar el archivo entero en memoria
                 with open(csv_path, "rb") as f:
-                    lineas = f.readlines()
-
-                if len(lineas) < 2:
-                    continue
-
-                # Detectar separador del header
-                header = lineas[0].decode("utf-8-sig", errors="replace").strip()
-                sep = ";" if header.count(";") >= header.count(",") else ","
-                n_campos_header = header.count(sep) + 1
-
-                # Verificar que cada fila tiene la misma cantidad de separadores
-                filas_malas = 0
-                for i, linea in enumerate(lineas[1:], start=2):
-                    texto = linea.decode("utf-8-sig", errors="replace").strip()
-                    if not texto:
-                        continue
-                    n_campos = texto.count(sep) + 1
-                    if n_campos != n_campos_header:
-                        filas_malas += 1
-
-                if filas_malas > 0:
-                    ruta_rel = csv_path.relative_to(DIRS["base"])
-                    advertencia(f"{ruta_rel}: {filas_malas} filas con {n_campos} campos vs {n_campos_header} en header")
-                    problemas_total += filas_malas
-
+                    header = f.readline().decode("utf-8-sig", errors="replace").strip()
+                    sep = max(IO["separadores"], key=header.count)
+                    n_header = header.count(sep) + 1
+                    conteo = Counter()
+                    trailing = 0
+                    for linea in f:
+                        texto = linea.decode("utf-8-sig", errors="replace").rstrip("\r\n")
+                        if not texto.strip():
+                            continue
+                        n = texto.count(sep) + 1
+                        if n == n_header:
+                            continue
+                        if n == n_header + 1 and texto.endswith(sep):
+                            trailing += 1      # ";" sobrante al final (ley 2017)
+                        else:
+                            conteo[n] += 1
             except Exception as e:
-                advertencia(f"Error leyendo {csv_path.relative_to(DIRS["base"])}: {e}")
+                advertencia(f"Error leyendo {ruta_rel}: {e}")
+                continue
+
+            if conteo:
+                distrib = ", ".join(f"{c}×{n} campos" for n, c in sorted(conteo.items()))
+                advertencia(f"{ruta_rel}: {sum(conteo.values())} filas con nº de "
+                            f"campos ≠ {n_header} del header ({distrib})")
+                problemas_total += sum(conteo.values())
+            if trailing:
+                info(f"{ruta_rel}: {trailing} filas con delimitador final sobrante")
 
     if problemas_total == 0:
         ok(f"Todos los {archivos_revisados} archivos tienen estructura de filas consistente")
@@ -440,10 +503,6 @@ def check_estructura_filas(tipos=None):
 def check_encoding():
     separador("CHECK 9 — Encoding entre archivos")
 
-    if not TIENE_UTILS:
-        advertencia("utils.py no disponible — no se puede verificar encoding")
-        return
-
     encodings_por_tipo = {}
 
     for tipo in ["ejecucion", "ley"]:
@@ -453,6 +512,8 @@ def check_encoding():
 
         encodings = {}
         for csv_path in sorted(carpeta.rglob("*.csv")):
+            if "_versiones" in csv_path.parts:
+                continue
             try:
                 _, fmt = leer_csv_robusto(str(csv_path), nrows=5)
                 enc = fmt["encoding"]
@@ -487,9 +548,6 @@ def check_encoding():
 # MAIN
 # =====================================================
 if __name__ == "__main__":
-    import config
-    print(f"config desde: {config.__file__}")
-    print(f"Corriendo: {__file__}")
     print(f"CONSOLIDADO_DIR: {CONSOLIDADO_DIR}")
     print("=" * 60)
     print("  VALIDACIÓN INTERNA — DATOS DIPRES (v3)")
@@ -502,8 +560,8 @@ if __name__ == "__main__":
         print(f"{'='*60}")
 
         cruce = cargar(f"cruce_{nivel}.csv")
-        ejec = cargar(f"ejecucion_{nivel}.csv")
-        ley = cargar(f"ley_{nivel}.csv")
+        n_ejec = contar_filas(f"ejecucion_{nivel}.csv", keys_de_nivel(nivel))
+        n_ley = contar_filas(f"ley_{nivel}.csv")
 
         if cruce is not None:
             check_cobertura(cruce, f"cruce_{nivel}")
@@ -511,7 +569,7 @@ if __name__ == "__main__":
             check_nulos(cruce, f"cruce_{nivel}")
             check_anomalias(cruce, f"cruce_{nivel}")
             check_valores_pegados(cruce, f"cruce_{nivel}")
-            check_cruce(cruce, ejec, ley, nivel)
+            check_cruce(cruce, n_ejec, n_ley, nivel)
 
     # ─── Coherencia entre niveles ───
     print(f"\n{'='*60}")
