@@ -1,95 +1,59 @@
 """
-Descarga DIPRES — versión consolidada
-======================================
+02_descargar.py — Descarga de ley y ejecución mensual DIPRES (datos.gob.cl)
+============================================================================
 Clasifica cada dataset por su cobertura temporal, resuelve la variante
-"Total efectiva" cuando existen múltiples (Ley Regular / FET / Total),
-y descarga con reintentos, validación de contenido y log resumible.
+"Total efectiva" cuando existen varias (Ley Regular / FET / Total) y
+descarga con reintentos, validación de tamaño y log resumible.
+
+Destino: DIRS["ley"] y DIRS["ejecucion"] / <año> / <mes> / <nivel>.csv
 
 Los datasets que no encajan en el patrón mensual (trimestrales legado,
 informes desagregados, iniciativas de inversión, sin clasificar) NO se
-descargan automáticamente: se listan en _catalogo_no_procesado.json
-para revisión manual.
+descargan: se listan en LOGS["no_procesado"] para revisión manual.
+Iniciativas de inversión → 03_descargar_inv.py.
+
+Uso:
+    python 02_descargar.py                    # pregunta antes de bajar
+    python 02_descargar.py --si               # sin preguntar
+    python 02_descargar.py --revisar-tamano   # re-baja archivos cortados
+    python 02_descargar.py --sobrescribir     # vuelve a bajar todo
 """
 
+import argparse
 import json
 import re
-import time
 from collections import defaultdict
-from datetime import datetime, timezone
-from pathlib import Path
 
-import requests
+from config import DIRS, LOGS
+from descarga import (LogDescarga, buscar_ckan, ejecutar_tareas,
+                      imprimir_conteo)
 
-# =====================================================
-# CONFIGURACIÓN
-# =====================================================
-DATOS_DIR = Path(r"D:\dipres-datos")
-CKAN_BASE = "https://datos.gob.cl/api/3/action"
-LOG_FILE = DATOS_DIR / "_log_descarga.json"
-NO_PROCESADOS_FILE = DATOS_DIR / "_catalogo_no_procesado.json"
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/csv, application/csv, text/plain, */*",
-}
+QUERIES = [
+    "Ejecución Presupuestaria Gobierno Central",
+    "Ley de Presupuestos Inicial y Vigente",
+]
 
 MESES = {
     "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
     "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
     "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12",
 }
+RX_PERIODO = re.compile(r"\ba\s+(" + "|".join(MESES) + r")\s+de\s+(\d{4})\b")
 VARIANTES = ["ley regular", "total", "fet incendios", "fet covid-19", "fet covid"]
+NIVELES = ["nacional", "partida", "capitulo", "programa"]
 
 
 # =====================================================
-# PASO 1 — Buscar datasets en CKAN
+# Clasificación
 # =====================================================
-def buscar_datasets() -> list[dict]:
-    print("🔍 Buscando datasets en CKAN API...")
-    queries = [
-        "Ejecución Presupuestaria Gobierno Central",
-        "Ley de Presupuestos Inicial y Vigente",
-    ]
-    datasets_raw = {}
-
-    for q in queries:
-        offset = 0
-        while True:
-            try:
-                resp = requests.get(
-                    f"{CKAN_BASE}/package_search",
-                    params={"q": q, "rows": 100, "start": offset},
-                    headers=HEADERS,
-                    timeout=30,
-                )
-                resp.raise_for_status()
-                data = resp.json()["result"]
-                results = data["results"]
-                if not results:
-                    break
-                for ds in results:
-                    datasets_raw[ds["id"]] = ds
-                offset += len(results)
-                if offset >= data["count"]:
-                    break
-            except Exception as e:
-                print(f"   ⚠ Error consultando '{q}' (offset={offset}): {e}")
-                break
-
-    print(f"📊 Total datasets únicos encontrados: {len(datasets_raw)}")
-    return list(datasets_raw.values())
+def es_dipres(ds: dict) -> bool:
+    org = ((ds.get("organization") or {}).get("title") or "").lower()
+    return "presupuesto" in org or "direcci" in org
 
 
-# =====================================================
-# PASO 2 — Clasificación por cobertura temporal / formato
-# =====================================================
-def clasificar_dataset(titulo: str, formatos_disponibles: set[str]) -> str:
+def clasificar_dataset(titulo: str, formatos: set[str]) -> str:
     tl = titulo.lower()
-    if "CSV" not in formatos_disponibles:
+    if "CSV" not in formatos:
         return "sin_csv"
     if "iniciativas de inversion" in tl or "iniciativas de inversión" in tl:
         return "iniciativas_inversion"
@@ -97,10 +61,10 @@ def clasificar_dataset(titulo: str, formatos_disponibles: set[str]) -> str:
         return "trimestral_legado"
     if "informes desagregados" in tl:
         return "informes_desagregados_legado"
-    if not re.search(r"\ba\s+(" + "|".join(MESES) + r")\s+de\s+(\d{4})\b", tl):
+    if not RX_PERIODO.search(tl):
         return "sin_clasificar"
-    tiene_variante = any(v in tl for v in VARIANTES)
-    return "mensual_con_variante" if tiene_variante else "mensual_sin_variante"
+    return ("mensual_con_variante" if any(v in tl for v in VARIANTES)
+            else "mensual_sin_variante")
 
 
 def extraer_tipo(titulo: str) -> str | None:
@@ -112,304 +76,122 @@ def extraer_tipo(titulo: str) -> str | None:
     return None
 
 
-def extraer_periodo(titulo: str) -> tuple[str, str] | None:
-    m = re.search(r"\ba\s+(" + "|".join(MESES) + r")\s+de\s+(\d{4})\b", titulo.lower())
-    return (MESES[m.group(1)], m.group(2)) if m else None  # (mes, año)
-
-
-# =====================================================
-# PASO 3 — Agrupar por (tipo, año, mes) y elegir el "Total efectivo"
-# =====================================================
-def agrupar_y_elegir(datasets_crudos: list[dict]) -> tuple[dict, dict]:
+def agrupar_y_elegir(datasets: list[dict]) -> tuple[dict, dict]:
+    """{(tipo, año, mes): dataset} eligiendo 'Total' si hay variantes."""
     por_periodo = defaultdict(list)
     no_procesados = defaultdict(list)
 
-    for ds in datasets_crudos:
+    for ds in datasets:
         titulo = ds.get("title", "")
-        org = (ds.get("organization", {}) or {}).get("title", "") or ""
-        if "presupuesto" not in org.lower() and "direcci" not in org.lower():
-            continue
-
-        formatos = set(r.get("format", "").upper() for r in ds.get("resources", []))
+        formatos = {r.get("format", "").upper() for r in ds.get("resources", [])}
         grupo = clasificar_dataset(titulo, formatos)
-
-        if grupo not in ("mensual_con_variante", "mensual_sin_variante"):
+        if not grupo.startswith("mensual"):
             no_procesados[grupo].append(titulo)
             continue
 
         tipo = extraer_tipo(titulo)
-        periodo = extraer_periodo(titulo)
-        if not tipo or not periodo:
+        m = RX_PERIODO.search(titulo.lower())
+        if not tipo or not m:
             no_procesados["sin_tipo_o_periodo"].append(titulo)
             continue
+        por_periodo[(tipo, m.group(2), MESES[m.group(1)])].append((titulo, ds))
 
-        mes, año = periodo
-        por_periodo[(tipo, año, mes)].append((titulo, ds))
-
-    periodos_elegidos = {}
+    elegidos = {}
     for clave, candidatos in por_periodo.items():
         if len(candidatos) == 1:
-            periodos_elegidos[clave] = candidatos[0][1]
+            elegidos[clave] = candidatos[0][1]
             continue
-
-        elegido = next((ds for t, ds in candidatos if "total" in t.lower()), None)
-        if elegido:
-            periodos_elegidos[clave] = elegido
+        total = next((ds for t, ds in candidatos if "total" in t.lower()), None)
+        if total:
+            elegidos[clave] = total
         else:
             no_procesados["con_variante_sin_total"].extend(t for t, _ in candidatos)
 
-    return periodos_elegidos, no_procesados
+    return elegidos, no_procesados
+
+
+def nivel_recurso(nombre: str) -> str | None:
+    n = nombre.lower().replace("í", "i")
+    return next((nv for nv in NIVELES if nv in n), None)
+
+
+def armar_tareas(elegidos: dict) -> list:
+    tareas = []
+    for (tipo, anio, mes), ds in sorted(elegidos.items()):
+        vistos = set()
+        for r in ds.get("resources", []):
+            if r.get("format", "").upper() != "CSV":
+                continue
+            nivel = nivel_recurso(r.get("name", ""))
+            if nivel is None:          # diccionario u otro
+                continue
+            if nivel in vistos:        # dos recursos al mismo nivel: avisar
+                print(f"   ⚠ {tipo} {anio}-{mes}: más de un CSV de nivel "
+                      f"'{nivel}', se usa el primero")
+                continue
+            vistos.add(nivel)
+            tareas.append((DIRS[tipo] / anio / mes / f"{nivel}.csv",
+                           r.get("url", ""), ds.get("title", "")))
+    return tareas
 
 
 # =====================================================
-# PASO 4 — Extraer recursos CSV del dataset elegido
+# Reporte
 # =====================================================
-def extraer_recursos(dataset: dict) -> list[dict]:
-    recursos = []
-    for r in dataset.get("resources", []):
-        if r.get("format", "").upper() != "CSV":
-            continue
-        nombre = r.get("name", "").lower()
-
-        if "nacional" in nombre:
-            nivel = "nacional"
-        elif "partida" in nombre:
-            nivel = "partida"
-        elif "capítulo" in nombre or "capitulo" in nombre:
-            nivel = "capitulo"
-        elif "programa" in nombre:
-            nivel = "programa"
-        elif "diccionario" in nombre:
-            nivel = "diccionario"
-        else:
-            nivel = "otro"
-
-        recursos.append({"nivel": nivel, "url": r.get("url", "")})
-    return recursos
-
-
-# =====================================================
-# PASO 5 — Descarga robusta: reintentos + validación + limpieza
-# =====================================================
-def descargar_archivo(url: str, ruta_destino: Path, max_reintentos: int = 3) -> tuple[bool, str | None]:
-    for intento in range(1, max_reintentos + 1):
-        try:
-            with requests.get(url, headers=HEADERS, timeout=60, stream=True) as resp:
-                resp.raise_for_status()
-
-                content_type = resp.headers.get("content-type", "").lower()
-                if "text/html" in content_type or "application/json" in content_type:
-                    return False, f"Content-Type inesperado: {content_type}"
-
-                ruta_destino.parent.mkdir(parents=True, exist_ok=True)
-                with open(ruta_destino, "wb") as f_out:
-                    for chunk in resp.iter_content(chunk_size=64 * 1024):
-                        if chunk:
-                            f_out.write(chunk)
-
-            if ruta_destino.exists() and ruta_destino.stat().st_size > 0:
-                return True, None
-            if ruta_destino.exists():
-                ruta_destino.unlink()
-
-        except Exception as e:
-            if intento < max_reintentos:
-                time.sleep(2 ** intento)
-            else:
-                if ruta_destino.exists():
-                    ruta_destino.unlink()
-                return False, str(e)
-
-    return False, "Reintentos agotados"
-
-
-# =====================================================
-# PASO 6 — Orquestar la descarga de todos los períodos
-# =====================================================
-def descargar_todo(periodos_elegidos: dict, sobrescribir: bool = False):
-    log = {}
-    if LOG_FILE.exists():
-        with open(LOG_FILE, encoding="utf-8") as f:
-            log = json.load(f)
-
-    tareas = [
-        (DATOS_DIR / tipo / año / mes / f"{r['nivel']}.csv", r["url"], ds.get("title", ""))
-        for (tipo, año, mes), ds in periodos_elegidos.items()
-        for r in extraer_recursos(ds)
-        if r["nivel"] not in ("diccionario", "otro")  # se manejan aparte si se necesitan
-    ]
-
-    total = len(tareas)
-    descargados = saltados = errores = 0
-    print(f"\n📥 {total} archivos a procesar\n")
-
-    for i, (ruta, url, titulo_ds) in enumerate(tareas, start=1):
-        if not sobrescribir and ruta.exists() and ruta.stat().st_size > 0:
-            saltados += 1
-            continue
-
-        print(f"[{i}/{total}] {ruta.relative_to(DATOS_DIR)}")
-        ok, motivo = descargar_archivo(url, ruta)
-
-        if ok:
-            descargados += 1
-            print(f"   ✅ {ruta.stat().st_size:,} bytes")
-        else:
-            errores += 1
-            print(f"   ❌ {motivo}")
-
-        log[str(ruta)] = {
-            "ok": ok,
-            "motivo_error": motivo,
-            "url": url,
-            "dataset": titulo_ds,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        DATOS_DIR.mkdir(parents=True, exist_ok=True)
-        with open(LOG_FILE, "w", encoding="utf-8") as f:
-            json.dump(log, f, ensure_ascii=False, indent=2)
-
-        time.sleep(0.3)
-
-    return descargados, saltados, errores
-
-
-# =====================================================
-# PASO 7 — Reporte y persistencia de no-procesados
-# =====================================================
-def imprimir_resumen(periodos_elegidos: dict, no_procesados: dict):
-    print(f"\n{'='*70}\nRESUMEN DE CLASIFICACIÓN\n{'='*70}")
-
+def imprimir_resumen(elegidos: dict, no_procesados: dict) -> None:
+    print(f"\n{'=' * 70}\nRESUMEN DE CLASIFICACIÓN\n{'=' * 70}")
     for tipo in ("ley", "ejecucion"):
-        periodos_tipo = sorted(k for k in periodos_elegidos if k[0] == tipo)
-        if not periodos_tipo:
-            continue
-        etiquetas = [f"{año}-{mes}" for _, año, mes in periodos_tipo]
-        print(f"\n  {tipo.upper()}: {len(periodos_tipo)} períodos ({etiquetas[0]} → {etiquetas[-1]})")
-
+        periodos = sorted(k for k in elegidos if k[0] == tipo)
+        if periodos:
+            print(f"\n  {tipo.upper()}: {len(periodos)} períodos "
+                  f"({periodos[0][1]}-{periodos[0][2]} → "
+                  f"{periodos[-1][1]}-{periodos[-1][2]})")
     if no_procesados:
-        print(f"\n  ⚠️ No incorporados automáticamente (requieren revisión):")
+        print("\n  ⚠ No incorporados automáticamente (requieren revisión):")
         for grupo, titulos in no_procesados.items():
             print(f"    {grupo}: {len(titulos)} datasets")
 
 
-def guardar_no_procesados(no_procesados: dict):
+def guardar_no_procesados(no_procesados: dict) -> None:
     if not no_procesados:
         return
-    NO_PROCESADOS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(NO_PROCESADOS_FILE, "w", encoding="utf-8") as f:
-        json.dump(no_procesados, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 No procesados guardados en: {NO_PROCESADOS_FILE}")
+    ruta = LOGS["no_procesado"]
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text(json.dumps(no_procesados, ensure_ascii=False, indent=2),
+                    encoding="utf-8")
+    print(f"\n💾 No procesados guardados en: {ruta}")
 
 
-# =====================================================
-# MAIN
 # =====================================================
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--si", action="store_true", help="no preguntar")
+    ap.add_argument("--sobrescribir", action="store_true")
+    ap.add_argument("--revisar-tamano", action="store_true",
+                    help="comparar archivos existentes con el tamaño remoto")
+    args = ap.parse_args()
+
     print("=" * 70)
     print("  DESCARGA DIPRES — SERIE 'TOTAL EFECTIVA' CONTINUA")
     print("=" * 70)
-    print(f"\nDestino: {DATOS_DIR.resolve()}\n")
+    print(f"\nDestino: {DIRS['raw']}\n")
 
-    datasets_crudos = buscar_datasets()
-    periodos_elegidos, no_procesados = agrupar_y_elegir(datasets_crudos)
+    print("🔍 Buscando datasets en CKAN...")
+    datasets = buscar_ckan(QUERIES, filtro=es_dipres)
+    print(f"📊 Datasets DIPRES únicos: {len(datasets)}")
 
-    imprimir_resumen(periodos_elegidos, no_procesados)
+    elegidos, no_procesados = agrupar_y_elegir(datasets)
+    imprimir_resumen(elegidos, no_procesados)
     guardar_no_procesados(no_procesados)
+    tareas = armar_tareas(elegidos)
 
-    print(f"\n{'='*70}")
-    if input("¿Iniciar descarga? (s/n): ").strip().lower() != "s":
-        print("Cancelado, nada descargado.")
-        raise SystemExit
+    print(f"\n{'=' * 70}")
+    if not args.si and input(f"¿Procesar {len(tareas)} archivos? (s/n): "
+                             ).strip().lower() != "s":
+        raise SystemExit("Cancelado, nada descargado.")
 
-    descargados, saltados, errores = descargar_todo(periodos_elegidos)
+    n = ejecutar_tareas(tareas, LogDescarga(LOGS["descarga"]), DIRS["raw"],
+                        args.sobrescribir, args.revisar_tamano)
 
-    print(f"\n{'='*70}\nDESCARGA COMPLETA\n{'='*70}")
-    print(f"  ✅ Descargados: {descargados}")
-    print(f"  ⏭  Ya existían: {saltados}")
-    print(f"  ❌ Errores:     {errores}")
-
-# =====================================================
-# EXTENSIÓN — Captura de datos legado (sin procesar aún)
-# =====================================================
-import unicodedata
-
-LEGADO_DIR = DATOS_DIR / "legado"
-
-def normalizar_texto(t: str) -> str:
-    t = t.strip().lower()
-    t = unicodedata.normalize("NFD", t)
-    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
-    return re.sub(r"\s+", " ", t)
-
-
-# --- 1. Informes desagregados (2012-2017): trimestral, Pesos/Dólares ---
-def extraer_trimestre_moneda(nombre_recurso: str) -> tuple[str, str] | None:
-    nt = normalizar_texto(nombre_recurso)
-
-    if "primer" in nt:
-        trim = "T1"
-    elif "segundo" in nt:
-        trim = "T2"
-    elif "tercer" in nt:
-        trim = "T3"
-    elif "cuarto" in nt:
-        trim = "T4"
-    else:
-        return None
-
-    if "dolar" in nt:  # cubre "dólar"/"dolar" ya normalizado sin tilde
-        moneda = "dolares"
-    elif "peso" in nt:
-        moneda = "pesos"
-    else:
-        return None
-
-    return trim, moneda
-
-
-def descargar_informes_desagregados(datasets_crudos: list[dict]):
-    """
-    Descarga los CSV de 'Informes desagregados de Presupuestos' (2012-2017).
-    Fusiona recursos de datasets duplicados con el mismo título (mismo año),
-    ya que el catálogo trae más de un ds_id para el mismo año con recursos
-    distintos y complementarios.
-    """
-    recursos_por_año = defaultdict(dict)  # año -> {(trim, moneda): url}
-
-    for ds in datasets_crudos:
-        titulo = ds.get("title", "")
-        if "informes desagregados" not in titulo.lower():
-            continue
-
-        m = re.search(r"\b(20\d{2})\b", titulo)
-        if not m:
-            continue
-        año = m.group(1)
-
-        for r in ds.get("resources", []):
-            if r.get("format", "").upper() != "CSV":
-                continue
-            clave = extraer_trimestre_moneda(r.get("name", ""))
-            if clave is None:
-                continue  # ej. el CSV de "Ley de Presupuestos" embebido en el mismo dataset, se maneja aparte
-            recursos_por_año[año][clave] = r.get("url", "")
-
-    total = sum(len(v) for v in recursos_por_año.values())
-    print(f"\n📥 Informes desagregados legado: {total} archivos ({len(recursos_por_año)} años)\n")
-
-    descargados = errores = 0
-    for año, recursos in sorted(recursos_por_año.items()):
-        for (trim, moneda), url in sorted(recursos.items()):
-            destino = LEGADO_DIR / "informes_desagregados" / año / f"{trim}_{moneda}.csv"
-            if destino.exists() and destino.stat().st_size > 0:
-                continue
-            print(f"   {destino.relative_to(DATOS_DIR)}")
-            ok, motivo = descargar_archivo(url, destino)
-            if ok:
-                descargados += 1
-            else:
-                errores += 1
-                print(f"      ❌ {motivo}")
-
-    print(f"\n   ✅ {descargados} descargados, ❌ {errores} errores")
+    print(f"\n{'=' * 70}\nDESCARGA COMPLETA\n{'=' * 70}")
+    imprimir_conteo(n)
