@@ -14,6 +14,7 @@ Checks:
   7. Coherencia entre niveles — separando consolidación de error
   8. Estructura a nivel de fila — delimitadores consistentes
   9. Encoding consistente entre archivos fuente
+ 10. Cambios de estructura institucional y descuadres partida/capítulo
 
 Uso:
     python 06_validar.py
@@ -28,6 +29,8 @@ from dominio import (MES_A_NUM, MESES, NIVELES, SUBTITULOS_TRANSFERENCIA,
                      keys_de_nivel)
 from hallazgos import Registro
 from utils import leer_csv_robusto
+from estructura import (asociar, catalogo_capitulos, descuadres_partida,
+                        eventos_estructura, montos_capitulo)
 
 reg = Registro("validacion", salida_dir=DIRS["reportes"])
 
@@ -438,6 +441,44 @@ def check_coherencia(nivel_alto, nivel_bajo, nombre_alto, nombre_bajo, keys_extr
 
 
 # =====================================================
+# CHECK 10 — Estructura institucional
+# =====================================================
+def check_estructura_institucional():
+    """Un descuadre partida > Σ capítulos no puede ser consolidación.
+    Si coincide con el alta/baja/traslado de un capítulo de esa partida
+    (de 1 mes antes a 6 después), es desfase de publicación entre niveles;
+    si no, advertencia."""
+    separador("CHECK 10 — Estructura institucional y descuadres partida/capítulo")
+    cols = ["Año", "Mes", "Moneda", "Partida", "Capítulo", "Subtítulo",
+            "Nombre Capítulo", "ley_vigente"]
+    rutas = [CONSOLIDADO_DIR / f"ley_{n}.csv" for n in ("capitulo", "partida")]
+    if not all(r.exists() for r in rutas):
+        advertencia("Faltan ley_capitulo.csv o ley_partida.csv")
+        return
+    cap, par = (pd.read_csv(r, encoding="utf-8-sig", low_memory=False,
+                            usecols=lambda c: c in cols) for r in rutas)
+    ev = eventos_estructura(catalogo_capitulos(cap), montos_capitulo(cap))
+    ev = ev[ev["tipo"].isin(["ALTA", "BAJA", "TRASLADO"])]
+    por_anio = ev.groupby("Año").size()
+    info("eventos de estructura por año: " +
+         ", ".join(f"{int(a)}: {n}" for a, n in por_anio.items()))
+    desc = asociar(descuadres_partida(par, cap, tol=TOLERANCIAS["monto"]), ev)
+    if desc.empty:
+        ok("Ninguna partida supera la suma de sus capítulos")
+        return
+    con = desc["evento"] != ""
+    info(f"{int(con.sum())}/{len(desc)} descuadres partida > Σ capítulos coinciden "
+         f"con un cambio de estructura (desfase de publicación entre niveles)")
+    if (~con).any():
+        meses = (desc[~con].groupby(["Año", "Mes"]).size()
+                 .sort_values(ascending=False).head(5))
+        advertencia(f"{int((~con).sum())} descuadres sin cambio de estructura "
+                    f"asociado · meses: " + ", ".join(
+                        f"{int(a)}-{m}×{n}" for (a, m), n in meses.items()))
+    print("    detalle: python 20_estructura_institucional.py")
+
+
+# =====================================================
 # CHECK 8 — Estructura a nivel de fila (CSVs crudos)
 # =====================================================
 def check_estructura_filas(tipos=None):
@@ -596,6 +637,8 @@ if __name__ == "__main__":
     check_coherencia(cruce_capitulo, cruce_programa,
         "capitulo", "programa",
         keys_extra=["Partida", "Capítulo"])
+
+    check_estructura_institucional()
 
     # ─── Checks de archivos fuente ───
     print(f"\n{'='*60}")
