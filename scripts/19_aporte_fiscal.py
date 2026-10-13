@@ -19,7 +19,7 @@ Validación: la tabla del artículo 2 se extrae del texto de la ley
 suman el TOTAL APORTES que publica la misma tabla.
 
 Entrada: cruce_programa.csv (o un programa.csv crudo de la familia ley,
-con --archivo). Salida en DIRS["consolidado"]:
+con --archivo). Salida en DIRS["reportes"]:
   aporte_fiscal_por_ministerio.csv   año × partida, con la referencia
                                      de la ley donde existe
   aporte_fiscal_brechas.csv          programas con sub 09 sin ítems
@@ -45,7 +45,7 @@ from hallazgos import Registro
 from utils import leer_csv_robusto
 
 DIR_TEXTO = DIRS.get("normativa", DIRS["base"] / "normativa") / "texto"
-SALIDA = DIRS["consolidado"]
+SALIDA = DIRS["reportes"]
 ANIOS_CON_TABLA = range(2017, 2021)
 
 # Nombres posibles de columnas (crudo de datos.gob.cl o cruce del pipeline)

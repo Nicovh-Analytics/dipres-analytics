@@ -20,7 +20,7 @@ p = 0,5. Binomial exacta, dos colas, sin dependencias externas.
 Clasificación: toda viene de dominio.py (CONCORDANCIA_GFS y
 NATURALEZA_INGRESO). Este script no define reglas propias.
 
-Salidas en DIRS["consolidado"]:
+Salidas en DIRS["reportes"]:
   ingresos_detalle.csv       RESPALDO GENERAL: año × moneda × subtítulo
   ingresos_concordancia.csv  copia de la clasificación usada (dominio)
   ingresos_agregados.csv     ingenuo vs GFS vs pronóstico vs impuestos
@@ -45,7 +45,7 @@ from dominio import (CONCORDANCIA_GFS, MES_A_NUM, NAT_CONTABLE, NAT_INTERNA,
 from hallazgos import Registro
 from utils import leer_csv_robusto
 
-SALIDA = DIRS["consolidado"]
+SALIDA = DIRS["reportes"]
 
 # Clasificación desde dominio: una sola fuente para todo el pipeline
 CONCORDANCIA = pd.DataFrame([

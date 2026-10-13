@@ -96,6 +96,7 @@ if __name__ == "__main__":
     print("  (2)  CONCILIACIÓN — EJECUCIÓN DE INGRESOS")
     print("=" * 78)
 
+    conciliaciones = []
     for anio in sorted(REFERENCIA_OFICIAL):
         d = c[c["Año"] == anio]
         if d.empty:
@@ -149,11 +150,22 @@ if __name__ == "__main__":
               f"{brecha_sup / oficial * 100:+.2f}% del oficial")
         print(f"  Tipo de cambio que cierra la brecha: {tc_cierra:,.1f} $/US$")
 
+        conciliaciones.append({
+            "anio": anio, "clasificador_mm": base, "gfs_mm": gfs_anio,
+            "oficial_mm": oficial, "brecha_mm": brecha,
+            "tc_observado": tc_obs, "tc_supuesto": tc_sup,
+            "brecha_obs_pct": brecha / oficial * 100,
+            "brecha_sup_pct": brecha_sup / oficial * 100,
+            "tc_que_cierra": tc_cierra})
         reg.info("conciliacion",
                  f"{anio}: clasificador {base:,.0f} → GFS {gfs_anio:,.0f} → "
                  f"oficial {oficial:,.0f} (brecha {brecha/oficial*100:+.2f}% "
                  f"con TC observado {tc_obs:,.1f}; TC que cierra "
                  f"{tc_cierra:,.1f})", anio=anio)
+
+    if conciliaciones:
+        pd.DataFrame(conciliaciones).round(4).to_csv(
+            DIRS["reportes"] / "conciliacion_ingresos.csv", index=False)
 
     print(f"\n  (*) correspondencia inferida del MEFP, no confirmada en")
     print(f"      documentación de DIPRES — pendiente de verificar")
