@@ -13,10 +13,10 @@ descargan: se listan en LOGS["no_procesado"] para revisión manual.
 Iniciativas de inversión → 03_descargar_inv.py.
 
 Uso:
-    python 02_descargar.py                    # pregunta antes de bajar
-    python 02_descargar.py --si               # sin preguntar
-    python 02_descargar.py --revisar-tamano   # re-baja archivos cortados
-    python 02_descargar.py --sobrescribir     # vuelve a bajar todo
+    python pipeline/1_extraccion/02_descargar.py                    # pregunta antes de bajar
+    python pipeline/1_extraccion/02_descargar.py --si               # sin preguntar
+    python pipeline/1_extraccion/02_descargar.py --revisar-tamano   # re-baja archivos cortados
+    python pipeline/1_extraccion/02_descargar.py --sobrescribir     # vuelve a bajar todo
 """
 
 import argparse

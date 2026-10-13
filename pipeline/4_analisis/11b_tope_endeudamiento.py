@@ -34,7 +34,7 @@ en TOPE_AJUSTES (un año) o TOPE_PLURIANUAL (bolsa para varios años, p. ej.
 Ley 21.288), con su fuente.
 
 Uso:
-    python 11b_tope_endeudamiento.py
+    python pipeline/4_analisis/11b_tope_endeudamiento.py
 """
 
 import re

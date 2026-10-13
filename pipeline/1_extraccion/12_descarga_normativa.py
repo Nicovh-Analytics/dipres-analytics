@@ -29,9 +29,9 @@ los artículos extraídos. Interpretar articulado no se automatiza
 de forma confiable.
 
 Uso:
-    python 12_descargar_normativa.py
-    python 12_descargar_normativa.py --solo 2024
-    python 12_descargar_normativa.py --sin-dipres
+    python pipeline/1_extraccion/12_descarga_normativa.py
+    python pipeline/1_extraccion/12_descarga_normativa.py --solo 2024
+    python pipeline/1_extraccion/12_descarga_normativa.py --sin-dipres
 """
 
 import argparse

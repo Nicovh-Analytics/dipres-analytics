@@ -21,7 +21,7 @@ signo) vive en 18_ingresos.py.
 Requiere TC_SUPUESTO y TC_OBSERVADO llenos en dominio.py.
 
 Uso:
-    python 10_conciliacion_gfs.py
+    python pipeline/4_analisis/10_conciliacion_gfs.py
 """
 
 import pandas as pd

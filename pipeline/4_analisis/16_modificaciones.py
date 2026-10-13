@@ -38,8 +38,8 @@ leyes COVID) y gastos excedibles. Por eso el resultado nunca es
 "requiere respaldo legal" (hay que ir a buscar la ley que lo autorizó).
 
 Uso:
-    python 16_modificaciones.py
-    python 16_modificaciones.py --umbral-pct 10 --umbral-monto 1000000
+    python pipeline/4_analisis/16_modificaciones.py
+    python pipeline/4_analisis/16_modificaciones.py --umbral-pct 10 --umbral-monto 1000000
 """
 
 import argparse

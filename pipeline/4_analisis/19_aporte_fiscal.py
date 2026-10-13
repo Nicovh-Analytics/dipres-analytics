@@ -25,8 +25,8 @@ con --archivo). Salida en DIRS["reportes"]:
   aporte_fiscal_brechas.csv          programas con sub 09 sin ítems
 
 Uso:
-    python 19_aporte_fiscal.py
-    python 19_aporte_fiscal.py --archivo ruta/a/programa.csv
+    python pipeline/4_analisis/19_aporte_fiscal.py
+    python pipeline/4_analisis/19_aporte_fiscal.py --archivo ruta/a/programa.csv
 """
 
 import argparse

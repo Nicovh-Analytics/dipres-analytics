@@ -8,7 +8,7 @@ Profiler y Documentador de Hallazgos — CSVs DIPRES
   (DIRS["docs"]/HALLAZGOS_PROFILING.md).
 
 Uso:
-    python 04_perfilar.py
+    python pipeline/3_validacion/04_perfilar.py
 """
 
 import json

@@ -19,7 +19,7 @@ fuente (05b, 20, _versiones), modificaciones, ejecución y endeudamiento
 (16, 17, 11b).
 
 Uso:
-    python 21_sintesis.py
+    python pipeline/5_informe/21_sintesis.py
 """
 
 from dataclasses import dataclass

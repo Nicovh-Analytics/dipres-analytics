@@ -17,7 +17,7 @@ Checks:
  10. Cambios de estructura institucional y descuadres partida/capítulo
 
 Uso:
-    python 06_validar.py
+    python pipeline/3_validacion/06_validar.py
 """
 
 from collections import Counter
@@ -475,7 +475,7 @@ def check_estructura_institucional():
         advertencia(f"{int((~con).sum())} descuadres sin cambio de estructura "
                     f"asociado · meses: " + ", ".join(
                         f"{int(a)}-{m}×{n}" for (a, m), n in meses.items()))
-    print("    detalle: python 20_estructura_institucional.py")
+    print("    detalle: python pipeline/4_analisis/20_estructura_institucional.py")
 
 
 # =====================================================

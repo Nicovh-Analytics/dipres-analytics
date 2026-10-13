@@ -32,8 +32,8 @@ respaldo auditable. Si existe la transcripción manual
 (docs/art1_ley_presupuestos.csv) se usa como control cruzado.
 
 Uso:
-    python 14_validar_vs_ley.py
-    python 14_validar_vs_ley.py --anio 2024
+    python pipeline/3_validacion/14_validar_vs_ley.py
+    python pipeline/3_validacion/14_validar_vs_ley.py --anio 2024
 """
 
 import argparse

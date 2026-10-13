@@ -37,9 +37,9 @@ Se procesa mes a mes y se escribe en modo append: memoria acotada aunque
 ejecucion_programa pese ~900 MB.
 
 Uso:
-    python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2
-    python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2 --niveles nacional partida
-    python 05b_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_v2 --verificar D:\\dipres-datos\\processed\\consolidado
+    python pipeline/2_consolidacion/05_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_nuevo
+    python pipeline/2_consolidacion/05_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_nuevo --niveles nacional partida
+    python pipeline/2_consolidacion/05_consolidar.py --salida D:\\dipres-datos\\processed\\consolidado_nuevo --verificar D:\\dipres-datos\\processed\\consolidado
 
 --verificar compara contra los consolidados de referencia: familias
 idénticas, y cruce sin solo_ejecucion idéntico al de referencia.

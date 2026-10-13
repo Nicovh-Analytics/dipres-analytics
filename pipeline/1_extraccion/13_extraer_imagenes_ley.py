@@ -16,8 +16,8 @@ Estructura en el XML:
     </aem:ArchivoBinario>
 
 Uso:
-    python 13_extraer_imagenes_ley.py
-    python 13_extraer_imagenes_ley.py --solo ley_presupuestos_2024
+    python pipeline/1_extraccion/13_extraer_imagenes_ley.py
+    python pipeline/1_extraccion/13_extraer_imagenes_ley.py --solo ley_presupuestos_2024
 """
 
 import argparse

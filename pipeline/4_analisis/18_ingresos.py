@@ -30,7 +30,7 @@ Salidas en DIRS["reportes"]:
                              alto sobre una base chica pesa poco en pesos
 
 Uso:
-    python 18_ingresos.py
+    python pipeline/4_analisis/18_ingresos.py
 """
 
 from math import comb

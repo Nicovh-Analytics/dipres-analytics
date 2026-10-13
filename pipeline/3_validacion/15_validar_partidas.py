@@ -21,8 +21,8 @@ Tres controles por año y moneda:
 Salida: docs/partidas_ley_dipres.csv (lo extraído, auditable).
 
 Uso:
-    python 15_validar_partidas.py
-    python 15_validar_partidas.py --anio 2020
+    python pipeline/3_validacion/15_validar_partidas.py
+    python pipeline/3_validacion/15_validar_partidas.py --anio 2020
 """
 
 import argparse

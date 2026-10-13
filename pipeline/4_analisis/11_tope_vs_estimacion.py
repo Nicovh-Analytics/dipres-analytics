@@ -26,7 +26,7 @@ así que el corte por moneda solo no basta. Antes se sumaban pesos y
 dólares sin convertir, lo que distorsionaba los ratios.
 
 Uso:
-    python 11_tope_vs_estimacion.py
+    python pipeline/4_analisis/11_tope_vs_estimacion.py
 """
 
 import pandas as pd

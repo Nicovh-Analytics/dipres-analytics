@@ -44,7 +44,7 @@ DIPRES publica cada nivel (nacional, partida, capítulo, programa) como archivo 
 
 **Implicancia para el análisis:** para series por ministerio se usa el archivo de partida, no la suma de capítulos. Los análisis de cierre usan diciembre, mes en que los casos confirmados ya están alineados.
 
-**Reproducir:** `python scripts/20_estructura_institucional.py`, que lista cada alta, baja, traslado y renombre de capítulo, y asocia cada descuadre con el cambio de estructura más cercano.
+**Reproducir:** `python pipeline/4_analisis/20_estructura_institucional.py`, que lista cada alta, baja, traslado y renombre de capítulo, y asocia cada descuadre con el cambio de estructura más cercano.
 
 ## 2. Línea de ley duplicada al doble
 

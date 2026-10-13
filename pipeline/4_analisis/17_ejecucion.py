@@ -26,8 +26,8 @@ Salidas en DIRS["reportes"]:
   ejecucion_calidad.csv      líneas donde acumulada ≠ Σ mensual
 
 Uso:
-    python 17_ejecucion.py
-    python 17_ejecucion.py --umbral-pct 10 --umbral-conc 25
+    python pipeline/4_analisis/17_ejecucion.py
+    python pipeline/4_analisis/17_ejecucion.py --umbral-pct 10 --umbral-conc 25
 """
 
 import argparse

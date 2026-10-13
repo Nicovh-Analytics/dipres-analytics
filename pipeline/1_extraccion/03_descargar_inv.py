@@ -8,11 +8,11 @@ de inversión desde datos.gob.cl. Traen desagregación geográfica
 Destino: DIRS["inversion"] / <año> / <nivel>.csv
 
 Uso:
-    python 03_descargar_inv.py                    # pregunta antes de bajar
-    python 03_descargar_inv.py --si               # sin preguntar
-    python 03_descargar_inv.py --inspeccionar     # muestra la estructura del
+    python pipeline/1_extraccion/03_descargar_inv.py                    # pregunta antes de bajar
+    python pipeline/1_extraccion/03_descargar_inv.py --si               # sin preguntar
+    python pipeline/1_extraccion/03_descargar_inv.py --inspeccionar     # muestra la estructura del
                                                   # primer CSV y termina
-    python 03_descargar_inv.py --revisar-tamano   # re-baja archivos cortados
+    python pipeline/1_extraccion/03_descargar_inv.py --revisar-tamano   # re-baja archivos cortados
 """
 
 import argparse

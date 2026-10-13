@@ -10,7 +10,7 @@ Salida (DIRS["consolidado"]):
   - cambios_clasificadores.csv → log de agregaciones y eliminaciones por año
 
 Uso:
-    python 07_diccionario.py
+    python pipeline/2_consolidacion/07_diccionario.py
 """
 
 import pandas as pd

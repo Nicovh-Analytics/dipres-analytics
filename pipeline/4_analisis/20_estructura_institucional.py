@@ -23,7 +23,7 @@ Salidas (DIRS["reportes"]):
   descuadres_partida_capitulo.csv, estructura_institucional.png
 
 Uso:
-    python 20_estructura_institucional.py
+    python pipeline/4_analisis/20_estructura_institucional.py
 """
 
 import pandas as pd
