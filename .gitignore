@@ -41,3 +41,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+*.egg-info/
+__pycache__/

@@ -1,0 +1,9 @@
+[project]
+name = "dipres-analytics"
+version = "0.1.0"
+description = "Auditoría de datos de ejecución presupuestaria del Gobierno Central de Chile"
+requires-python = ">=3.11"
+dependencies = ["pandas", "numpy", "requests", "scipy", "matplotlib"]
+
+[tool.setuptools]
+packages = ["dipres"]
