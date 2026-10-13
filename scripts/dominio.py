@@ -405,7 +405,7 @@ def subtitulos_con_naturaleza(naturaleza: str) -> set[int]:
 # miles de pesos.
 TC_SUPUESTO: dict[int, float | None] = {
     2017: 670, 2018: 650, 2019: 636, 2020: 675, 2021: 766,
-    2022: 739, 2023: 850, 2024: 832, 2025: 962,
+    2022: 739, 2023: 850, 2024: 832, 2025: 887,
     2026: 958,
 }
 

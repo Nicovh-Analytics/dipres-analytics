@@ -8,7 +8,7 @@ Base: ley_inicial validada contra la ley (scripts 14 y 15).
 Corte: último mes disponible de cada año (vigente al cierre). Un año
 sin diciembre (2026) se marca incompleto y no entra en la recurrencia.
 
-Salidas en DIRS["consolidado"]:
+Salidas en DIRS["reportes"]:
   modificaciones_detalle.csv     RESPALDO GENERAL: cada año × moneda ×
                                  partida × subtítulo, sin agregar. Ningún
                                  aumento se compensa con una rebaja, así
@@ -52,7 +52,7 @@ from dominio import MES_A_NUM
 from hallazgos import Registro
 from utils import leer_csv_robusto
 
-SALIDA = DIRS["consolidado"]
+SALIDA = DIRS["reportes"]
 
 # Umbrales de materialidad (ajustables por CLI). Montos en miles.
 UMBRAL_PCT = 10.0

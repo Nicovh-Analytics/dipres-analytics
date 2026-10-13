@@ -8,13 +8,16 @@ es el máximo autorizado; la ejecución acumulada a diciembre es lo gastado.
 
 Tres señales por año × moneda × partida × subtítulo (gastos):
   subejecución     ejecutado < vigente por sobre el umbral
-  sobreejecución   ejecutado > vigente (solo legal si es excedible)
+  sobreejecución   ejecutado > vigente > 0 (solo legal si es excedible)
+  sin ley          ejecutado > 0 con vigente 0: no hay línea que exceder
+                   (filas origen=solo_ejecucion del cruce); va aparte
+                   para no inflar la sobreejecución
   concentración    % del gasto del año ejecutado en diciembre
 
 Más un control de calidad del dato: ejecucion_acumulada debería ser la
 suma de ejecucion_mes. Donde no lo es, se registra (no se corrige).
 
-Salidas en DIRS["consolidado"]:
+Salidas en DIRS["reportes"]:
   ejecucion_detalle.csv      RESPALDO GENERAL: cada año × moneda × partida
                              × subtítulo, ingresos y gastos, sin agregar
   ejecucion_resumen.csv      por año: no ejecutado y sobreejecutado por
@@ -37,7 +40,7 @@ from dominio import MES_A_NUM
 from hallazgos import Registro
 from utils import leer_csv_robusto
 
-SALIDA = DIRS["consolidado"]
+SALIDA = DIRS["reportes"]
 CLAVE = ["anio", "moneda", "partida", "subtitulo"]
 
 UMBRAL_PCT = 10.0       # subejecución: ejecuta menos del 90% de lo vigente
@@ -137,7 +140,9 @@ def detalle(m: pd.DataFrame, umbral_pct: float, umbral_conc: float) -> pd.DataFr
     gasto = (d.seccion == "GASTOS") & d.anio_completo
     d["subejecucion"] = gasto & (d.saldo >= monto) & (
         d.pct_ejecucion <= 100 - umbral_pct)
-    d["sobreejecucion"] = gasto & (-d.saldo > d.moneda.map(TOL_SOBRE))
+    tol = d.moneda.map(TOL_SOBRE)
+    d["sin_ley"] = gasto & (d.vigente == 0) & (d.ejecutado > tol)
+    d["sobreejecucion"] = gasto & (d.vigente != 0) & (-d.saldo > tol)
     d["concentracion_dic"] = gasto & (d.ejec_dic >= monto) & (
         d.pct_en_diciembre >= umbral_conc)
     return d
@@ -147,14 +152,20 @@ def detalle(m: pd.DataFrame, umbral_pct: float, umbral_conc: float) -> pd.DataFr
 # 2. Resumen
 # =====================================================
 def resumen(d: pd.DataFrame) -> pd.DataFrame:
-    x = d[~d.doble_conteo]
+    x = d[~d.doble_conteo].copy()
+    # Lo ejecutado sin línea de ley no es sobreejecución: se separa
+    sin = (x.vigente == 0) & (x.ejecutado > 0)
+    x["ejec_sin_ley"] = np.where(sin, x.ejecutado, 0.0)
+    x.loc[sin, "saldo"] = 0.0
     g = x.groupby(["anio", "anio_completo", "moneda", "seccion"])
     r = g.agg(vigente=("vigente", "sum"), ejecutado=("ejecutado", "sum"),
               ejec_dic=("ejec_dic", "sum"),
               no_ejecutado=("saldo", lambda s: s[s > 0].sum()),
               sobreejecutado=("saldo", lambda s: -s[s < 0].sum()),
+              ejecutado_sin_ley=("ejec_sin_ley", "sum"),
               lineas_sub=("subejecucion", "sum"),
               lineas_sobre=("sobreejecucion", "sum"),
+              lineas_sin_ley=("sin_ley", "sum"),
               lineas_conc=("concentracion_dic", "sum")).reset_index()
     r["pct_ejecucion"] = 100 * r.ejecutado / r.vigente
     r["pct_en_diciembre"] = 100 * r.ejec_dic / r.ejecutado
@@ -229,11 +240,12 @@ if __name__ == "__main__":
 
     print(f"\n{'─' * 78}\n  Gastos en pesos (millones), sin aporte fiscal 27/28\n")
     print(f"  {'Año':<6}{'Vigente':>12}{'Ejecutado':>12}{'%':>7}{'No ejec.':>12}"
-          f"{'Sobre':>11}{'% dic':>7}{'Sub':>6}{'Sobre':>6}{'Conc':>6}")
+          f"{'Sobre':>11}{'Sin ley':>9}{'% dic':>7}{'Sub':>6}{'Sobre':>6}{'Conc':>6}")
     for r in res[(res.moneda == "PESOS") & (res.seccion == "GASTOS")].itertuples():
         print(f"  {r.anio:<6}{r.vigente / 1e3:>12,.0f}{r.ejecutado / 1e3:>12,.0f}"
               f"{r.pct_ejecucion:>7.1f}{r.no_ejecutado / 1e3:>12,.0f}"
-              f"{r.sobreejecutado / 1e3:>11,.0f}{r.pct_en_diciembre:>7.1f}"
+              f"{r.sobreejecutado / 1e3:>11,.0f}{r.ejecutado_sin_ley / 1e3:>9,.0f}"
+              f"{r.pct_en_diciembre:>7.1f}"
               f"{r.lineas_sub:>6}{r.lineas_sobre:>6}{r.lineas_conc:>6}"
               + ("" if r.anio_completo else "  * incompleto"))
 
@@ -256,5 +268,7 @@ if __name__ == "__main__":
             reg.warn("ejecucion", f"{len(t)} partida·subtítulo operativos "
                      f"sobreejecutados en ≥5 años", patron="sobreejecución recurrente")
 
+    print("\n  Sobre   = ejecutado sobre un vigente > 0")
+    print("  Sin ley = ejecutado en partida·subtítulo con vigente 0 (no es sobreejecución)")
     print(f"\n  Respaldo general: {SALIDA / 'ejecucion_detalle.csv'} ({len(det):,} filas)")
     reg.emitir()

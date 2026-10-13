@@ -84,3 +84,7 @@ En 2025, la partida 50, subtítulo 28, ítem 04, asignación 20 identifica a dos
 El cruce original (left join desde la ley) descartaba sin aviso la ejecución sin línea de ley. A nivel programa, en 2020, eso era el 41,6% de la ejecución en pesos. El cruce actual es un outer join con la columna `origen`.
 
 A nivel programa la diferencia es estructural: la ley trae subtotales por subtítulo e ítem, mientras que la ejecución viene por asignación. El cruce a ese nivel sirve poco para análisis. Queda pendiente un cruce por subtítulo e ítem.
+
+## Pendientes
+
+Inconsistencias internas de la Ley de Presupuestos: (a) 2020, el artículo 1 es 60.273.744 menor que la suma de los cuadros por partida en el subtítulo 32 (gastos) y en el 12 (ingresos); el dataset calza con los cuadros por partida (600/600). (b) 2018, el cuadro de la partida 09 repite el subtítulo 34; la segunda línea (43.109) corresponde al 35, como la registra el dataset. En ambos casos el dataset es correcto.
