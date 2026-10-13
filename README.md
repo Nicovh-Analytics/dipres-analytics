@@ -49,29 +49,34 @@ norma, ambos comportamientos se ven iguales en los datos.
 ## Estructura
 
 ```
-scripts/     pipeline y módulos compartidos
-docs/        hallazgos curados y lecciones aprendidas
-notebooks/   exploración
+dipres/        módulos compartidos (paquete importable)
+pipeline/      scripts del pipeline, una carpeta por etapa
+exploratorio/  catálogo inicial de la API CKAN
+archivo/       scripts reemplazados o de una sola vez
+docs/          hallazgos, calidad de la fuente y lecciones aprendidas
+run.py         corre el pipeline por etapas
 ```
 
 Los datos viven fuera del repo. La ruta se define con la variable de
 entorno `DIPRES_HOME` (por defecto `D:\dipres-datos`):
 
 ```
-raw/          descargado, inmutable
-processed/    generado por el pipeline
-reports/      salidas de validación
+raw/          descargado; las versiones reemplazadas quedan en _versiones/
+processed/    consolidados y cruces generados por el pipeline
+reports/      salidas de validación y análisis
 logs/         metadata de descarga
 ```
 
-## Módulos compartidos
+## Módulos compartidos (`dipres/`)
 
-| Archivo | Responsabilidad |
+| Módulo | Responsabilidad |
 |---|---|
 | `config.py` | rutas, endpoints, tolerancias |
-| `dominio.py` | clasificador presupuestario, concordancia GFS |
+| `dominio.py` | clasificador presupuestario, concordancia GFS, tipos de cambio |
 | `normativa.py` | corpus legal y régimen por subtítulo |
-| `utils.py` | lectura robusta de CSV (encoding y separador) |
+| `estructura.py` | altas, bajas, traslados y renombres de instituciones |
+| `descarga.py` | descarga con verificación de tamaño y respaldo de versiones |
+| `utils.py` | lectura robusta de CSV |
 | `hallazgos.py` | registro estructurado de validaciones |
 
 Cada hecho vive en un solo lugar. Si un subtítulo se reclasifica, se
@@ -79,37 +84,38 @@ corrige en `dominio.py` y todo el pipeline queda consistente.
 
 ## Pipeline
 
-```
-01_explorar.py             cataloga datasets en la API CKAN
-02_descargar.py            ejecución y ley, por año/mes/nivel
-03_descargar_inv.py        iniciativas de inversión (incluye geografía)
-04_perfilar.py             detecta anomalías de estructura
-05_transformar.py          normaliza, limpia y cruza ley con ejecución
-06_validar.py              9 checks de consistencia
-12_descargar_normativa.py  corpus legal desde LeyChile
-```
+| Etapa | Scripts |
+|---|---|
+| 1. Extracción | `02` ejecución y ley · `03` iniciativas de inversión · `12` corpus legal (LeyChile, Dipres) · `13` tablas del artículo 1 |
+| 2. Consolidación | `05` crudos → consolidados y cruce ley/ejecución · `07` diccionario de datos |
+| 3. Validación | `04` perfil · `06` consistencia interna · `14` dataset vs artículo 1 · `15` dataset vs tablas por partida |
+| 4. Análisis | `10` conciliación GFS · `11` topes vs estimaciones · `11b` límite de endeudamiento · `16` modificaciones · `17` ejecución · `18` ingresos · `19` aporte fiscal · `20` estructura institucional |
+| 5. Informe | `21` genera [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md) |
 
 ## Problemas de datos resueltos
 
 | Problema | Causa | Solución |
 |---|---|---|
-| Columnas corridas en 12 archivos | delimitador sobrante al final de fila | `index_col=False` |
-| Delimitador dentro de campos de texto | `;` en Nombre Asignación | reparación por conteo de campos |
+| Columnas corridas | `;` sobrante al final de fila | se descarta el campo vacío |
+| Delimitador dentro de texto | `;` en nombres de asignación | reparación por conteo de campos |
 | Producto cartesiano (17,7M → 1,4M filas) | faltaban `Item` y `Asignación` en las claves | claves completas por nivel |
-| Granularidad desigual ley vs ejecución | ejecución llega a Sub-Asignación, ley no | colapso previo al cruce |
-| Encoding mixto (77 archivos en cp1252) | latin-1 nunca falla al decodificar | detección por marcadores de mojibake |
+| Ejecución descartada sin aviso | cruce left join desde la ley | outer join con columna `origen` |
+| Línea de ley al doble exacto | error de la fuente | se descarta la copia y se registra |
+| Encoding mixto | archivos en cp1252 | se decodifica el archivo completo: utf-8 → cp1252 → latin-1 |
 
-Detalle en [`docs/lecciones_datos_dipres.md`](docs/lecciones_datos_dipres.md).
+Detalle en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md) y
+[`docs/lecciones_datos_dipres.md`](docs/lecciones_datos_dipres.md).
 
 ## Reproducir
 
 ```bash
 git clone <url> && cd dipres-analytics
-pip install pandas requests scipy
-set DIPRES_HOME=D:\dipres-datos        # ajustar
-python scripts/02_descargar.py
-python scripts/05_transformar.py
-python scripts/06_validar.py
+pip install -e .
+export DIPRES_HOME=/d/dipres-datos     # Git Bash; ajustar
+python run.py --lista                  # etapas y scripts
+python run.py --todo                   # descarga → informe
+python run.py                          # desde consolidación (sin red)
+python run.py --solo analisis
 ```
 
 ## Marco normativo
@@ -117,19 +123,17 @@ python scripts/06_validar.py
 - **DL 1.263/1975** — Administración Financiera del Estado
 - **DS 854/2004** — Clasificador presupuestario
 - **Ley 20.285** — Transparencia; exige que la información pública sea veraz
-- **Ley de Presupuestos anual** — artículos 3 (endeudamiento), 4 (topes), 32 (gastos excedibles)
+- **Ley de Presupuestos anual** — artículos 1 (cálculo de ingresos y gastos), 3 (endeudamiento), 4 (topes), 32 (gastos excedibles)
+- **Ley 21.288** — Fondo COVID; endeudamiento adicional 2020–2022
 - **MEFP 2001/2014 (FMI)** — marco del Estado de Operaciones de Gobierno
 
 ## Estado
 
-- [x] Extracción, perfilado, transformación y validación
-- [x] Reconciliación con cifra oficial (2,6% de diferencia, explicada)
-- [x] Hallazgo de ingresos cerrado
-- [x] Corpus normativo — articulado extraído
-- [ ] Validación de `ley_inicial` contra el artículo 1 (tablas en imagen)
-- [ ] Prueba de cumplimiento por subtítulo
+- [x] Extracción, consolidación y validación interna
+- [x] Validación contra el artículo 1 y las tablas por partida de la ley
+- [x] Conciliación de ingresos con la cifra oficial (2024: −0,55%)
+- [x] Topes del artículo 4 y límite de endeudamiento del artículo 3
+- [x] Modificaciones, ejecución y estructura institucional
+- [x] Síntesis de hallazgos en formato de auditoría
+- [ ] Cruce a nivel programa por subtítulo e ítem
 - [ ] Visualización
-
-## Licencia
-
-Código bajo MIT. Los datos son públicos y pertenecen al Estado de Chile.
