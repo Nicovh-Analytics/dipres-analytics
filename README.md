@@ -1,50 +1,58 @@
-# DIPRES — Auditoría de datos presupuestarios
-
-Pipeline de extracción, validación y análisis del presupuesto público
-chileno (2017–2026), a partir de los datos abiertos de
-[datos.gob.cl](https://datos.gob.cl) y la normativa publicada en
-[LeyChile](https://www.bcn.cl/leychile).
-
-El proyecto no busca describir en qué gasta el Estado —eso ya lo hace el
-Observatorio del Gasto Fiscal— sino examinar si los datos publicados
-permiten fiscalizar, y si la ejecución se ajusta a lo que la norma
-autoriza.
-
 ## Hallazgos
 
-**El agregado de ingresos no mide lo que parece medir.**
-Sumar los subtítulos 01–15 del clasificador presupuestario arroja una
-subestimación sistemática de 14,8% (9 de 9 años, p=0,0039). Al aplicar
-el criterio del Estado de Operaciones de Gobierno —que excluye venta de
-activos financieros, recuperación de préstamos y endeudamiento por ser
-financiamiento y no ingreso— el sesgo desaparece por completo (p=1,0).
-El componente que efectivamente se proyecta, Impuestos, tiene un error
-medio de 1,0%.
+Resumen de los 19 hallazgos. El detalle de cada uno (condición, criterio,
+evidencia y alcance) está en [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), que
+se regenera desde los reportes del pipeline.
 
-**La conciliación entre ambos marcos existe y no se publica.**
-DIPRES construye el Estado de Operaciones reclasificando partidas del
-clasificador presupuestario. Ese procedimiento está documentado en sus
-anexos metodológicos, pero no acompaña al dataset. Quien use los datos
-abiertos sin conocerlo obtiene un resultado técnicamente correcto y
-analíticamente falso.
+**Ingresos: el sesgo de proyección es un efecto de perímetro.**
+Si se suman los subtítulos 01–15, la ley subestima lo recaudado los 9 años
+(+14,9%, p = 0,004). Al excluir lo que es financiamiento y no ingreso
+(endeudamiento, venta de activos financieros, recuperación de préstamos),
+el sesgo deja de ser significativo (+3,7%, p = 1,0): el 76% del error viene
+de líneas que en la ley son autorizaciones, no estimaciones. Impuestos no
+tiene sesgo acumulado (+0,1%), pero en 7 de 9 años recauda menos de lo
+proyectado (mediana −6,1%).
 
-**El diccionario de datos no describe el dataset que acompaña.**
-Los nombres de columna documentados (`Ejecución del Mes`) no existen en
-ningún archivo publicado, que usan el mes embebido
-(`Ejecución de ENERO`). Mismo caso con los valores de moneda, el tipo de
-los códigos y las tildes.
+**Los datos abiertos concilian con la cifra oficial, pero la conciliación no se publica.**
+Con el perímetro del manual del FMI, los ingresos 2024 del dataset difieren
+en −0,55% de la cifra del Informe de Finanzas Públicas. DIPRES documenta la
+reclasificación en sus anexos metodológicos, pero no la incluye en el
+dataset: si se suman los datos abiertos sin conocerla, el resultado es
+técnicamente correcto y analíticamente falso.
 
-**Las cifras aprobadas por el Congreso se publican como imagen.**
-El artículo 1 de la Ley de Presupuestos —el detalle de ingresos y gastos
-que el Congreso aprueba— se publica en LeyChile como JPEG embebido. No
-es texto seleccionable ni dato procesable.
+**El presupuesto de gastos se amplía todos los años.**
+La ley vigente al cierre supera a la inicial en los 9 años (mediana +17,5%;
++61,4% en 2021). En pesos, los aumentos de gasto corriente caben en las
+excepciones del artículo 4. En dólares, 5 años muestran aumentos sin
+excepción medible (hasta US$ 87 millones), que requieren un respaldo legal
+que el dataset no muestra.
 
-**La norma predice el comportamiento de los datos.**
-El articulado define el régimen de cada subtítulo: los protegidos por el
-artículo 4 requieren ley para incrementarse y nunca exceden su
-autorización (uso 99–100%, 0 excesos en 9 años); los exceptuados por el
-inciso segundo la exceden sistemáticamente (uso 157–216%). Sin leer la
-norma, ambos comportamientos se ven iguales en los datos.
+**La ejecución repite patrones.**
+Se ejecuta entre el 93,7% y el 99,0% de lo autorizado, pero las mismas
+líneas subejecutan año tras año (inversión de Educación: 9 de 9 años,
+mediana 62%) y las compras de activos se concentran en diciembre (Poder
+Judicial: mediana 78% del gasto del año en ese mes).
+
+**Endeudamiento.**
+En 2020 y 2021 el endeudamiento supera el tope del artículo 3, pero cabe en
+la autorización adicional del Fondo COVID (Ley 21.288). En 2017 y 2019 lo
+supera levemente (uso neto 104% y 108%) sin ley adicional identificada.
+
+**La estructura del Estado se puede leer en la ley.**
+Entre 2018 y 2026 hubo 85 altas, 30 bajas y 6 traslados de servicios; los
+capítulos pasaron de 208 a 268. El traspaso de la educación municipal se ve
+completo: 59 Servicios Locales de Educación. Entre 2018 y 2020, el 79% de los
+cambios ocurrió a mitad de año; entre 2022 y 2026, solo el 9%.
+
+**Calidad de la fuente.**
+En 59 casos una partida suma más que sus capítulos, algo que no puede
+deberse a la consolidación. El 86% coincide con un servicio creado a mitad
+de año, y no hay casos desde 2021. Hay líneas de ley repetidas con el monto
+exacto al doble (Primera Categoría, enero 2020: 8,3 billones de pesos
+repetidos como 16,5). El artículo 1 de la ley, el detalle que aprueba el
+Congreso, se publica en LeyChile como imagen. Extraído, cuadra con el
+dataset en 5.927 de 5.929 combinaciones partida × subtítulo. Detalle en
+[`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md).
 
 ## Estructura
 

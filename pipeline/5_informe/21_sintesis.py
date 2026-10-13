@@ -15,7 +15,7 @@ Si falta el CSV de un bloque, el hallazgo queda como "pendiente: correr X"
 en vez de fallar.
 
 Bloques: ingresos (10, 18), estructura institucional (20), calidad de la
-fuente (05b, 20, _versiones), modificaciones, ejecución y endeudamiento
+fuente (05, 20, _versiones), modificaciones, ejecución y endeudamiento
 (16, 17, 11b).
 
 Uso:
@@ -433,7 +433,7 @@ def bloque_calidad() -> list[Hallazgo]:
             "Una fila válida tiene tantos campos como el encabezado, códigos "
             "numéricos y montos con formato chileno. Una línea repetida con el "
             "doble exacto en ley inicial y vigente es un error de la fuente.",
-            "05b_consolidar.py → _log_consolidar_<nivel>.json",
+            "05_consolidar.py → _log_consolidar_<nivel>.json",
             "La regla del doble exacto es conservadora: líneas repetidas con "
             "nombres distintos se mantienen (código de asignación reutilizado "
             "en 2025). Detalle en CALIDAD_FUENTE.md.",

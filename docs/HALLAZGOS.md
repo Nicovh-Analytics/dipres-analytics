@@ -230,6 +230,6 @@
 
 **Criterio.** Una fila válida tiene tantos campos como el encabezado, códigos numéricos y montos con formato chileno. Una línea repetida con el doble exacto en ley inicial y vigente es un error de la fuente.
 
-**Evidencia.** `05b_consolidar.py → _log_consolidar_<nivel>.json`
+**Evidencia.** `05_consolidar.py → _log_consolidar_<nivel>.json`
 
 **Alcance.** La regla del doble exacto es conservadora: líneas repetidas con nombres distintos se mantienen (código de asignación reutilizado en 2025). Detalle en CALIDAD_FUENTE.md.
