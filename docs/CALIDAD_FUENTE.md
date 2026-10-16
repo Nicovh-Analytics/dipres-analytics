@@ -18,6 +18,7 @@
 | 7 | Mes en minúscula en la columna (`junio`) | 14 archivos de ley 2017-2023 | `05b` toma el mes de la carpeta |
 | 8 | Encoding mixto (utf-8 / cp1252) | archivos 2024 | `05b` decodifica el archivo completo |
 | 9 | Ejecución sin línea de ley | 189 filas nacional · 2,2 M programa | El cruce las conserva con `origen=solo_ejecucion` |
+| 10 | La ley no cuadra consigo misma | 2018 y 2020 | `15` los separa; el dataset sigue los cuadros por partida |
 
 ---
 
@@ -57,13 +58,15 @@ En la ley de 2020-01 (programa), la misma línea aparece dos veces y la segunda 
 
 Lo mismo ocurre en 2020-01 con la Subsecretaría de Energía (aporte fiscal: 96.006.997 / 192.013.994) y entre 2017-08 y 2017-12 con una asignación de la partida 05 (141.153 / 282.306).
 
-**Regla de `05b`:** si una clave y sus nombres están repetidos y una copia trae el doble exacto en ley inicial y en ley vigente (con tolerancia de 1), se descarta la doble. Cada línea descartada queda en `_log_consolidar_programa.json`. Con nombres distintos, las líneas se conservan (ver caso 3).
+**Regla de `05b`:** si una clave y sus nombres están repetidos y una copia trae el doble exacto en ley inicial y en ley vigente (con tolerancia de 1), se descarta la doble. 
+Cada línea descartada queda en `_log_consolidar_programa.json`. Con nombres distintos, las líneas se conservan (ver caso 3).
 
 **Efecto:** sin la regla, la ejecución de 2020-01 del Tesoro a nivel programa superaba al capítulo en 41.924.866, porque el cruce duplicaba la fila.
 
 ## 3. Código de asignación reutilizado
 
-En 2025, la partida 50, subtítulo 28, ítem 04, asignación 20 identifica a dos instituciones distintas: la Dirección de Obras Hidráulicas y la Subdirección de Servicios Sanitarios Rurales. Son líneas reales: no se juntan. El check 2 del `06` las reporta como duplicado de clave.
+En 2025, la partida 50, subtítulo 28, ítem 04, asignación 20 identifica a dos instituciones distintas: la Dirección de Obras Hidráulicas y la Subdirección de Servicios Sanitarios Rurales. 
+Son líneas reales: no se juntan. El check 2 del `06` las reporta como duplicado de clave.
 
 ## 4. Datos republicados
 
@@ -85,6 +88,70 @@ El cruce original (left join desde la ley) descartaba sin aviso la ejecución si
 
 A nivel programa la diferencia es estructural: la ley trae subtotales por subtítulo e ítem, mientras que la ejecución viene por asignación. El cruce a ese nivel sirve poco para análisis. Queda pendiente un cruce por subtítulo e ítem.
 
-## Pendientes
+## 10. La ley no cuadra consigo misma
 
-Inconsistencias internas de la Ley de Presupuestos: (a) 2020, el artículo 1 es 60.273.744 menor que la suma de los cuadros por partida en el subtítulo 32 (gastos) y en el 12 (ingresos); el dataset calza con los cuadros por partida (600/600). (b) 2018, el cuadro de la partida 09 repite el subtítulo 34; la segunda línea (43.109) corresponde al 35, como la registra el dataset. En ambos casos el dataset es correcto.
+La Ley de Presupuestos presenta las mismas cifras dos veces: en el
+**artículo 1**, el total del país por subtítulo, y en los **cuadros por
+partida**, el detalle de cada ministerio. La suma de los cuadros debería
+dar el artículo 1. El `15` lo verifica para cada año y cada moneda, y en
+2017-2026 encontró dos casos donde no pasa (miles de $).
+
+**2018: una línea con la etiqueta equivocada.** En el cuadro de Educación
+(partida 09), una línea de 43.109 aparece rotulada como subtítulo 34
+(Servicio de la Deuda), cuando corresponde al 35 (Saldo Final de Caja):
+
+| Subtítulo | Artículo 1 | Σ cuadros por partida | Dataset |
+|---|---:|---:|---:|
+| 34 Servicio de la deuda | 2.511.346.039 | 2.511.389.148 | 2.511.346.039 |
+| 35 Saldo final de caja | 28.662.280 | 28.619.171 | 28.662.280 |
+
+El artículo 1 y el dataset coinciden: el error está solo en el rótulo del cuadro.
+
+**2020: el mismo monto falta en ingresos y gastos.** El artículo 1 tiene
+60.273.744 menos que la suma de los cuadros, tanto en préstamos que el
+Estado otorga como en préstamos que recupera:
+
+| Subtítulo | Artículo 1 | Σ cuadros por partida | Diferencia |
+|---|---:|---:|---:|
+| Gasto 32 Préstamos | 1.229.013.088 | 1.289.286.832 | 60.273.744 |
+| Ingreso 12 Recuperación de préstamos | 703.718.071 | 763.991.815 | 60.273.744 |
+
+El dataset coincide con los cuadros por partida (600 de 600 combinaciones).
+Se descartó que el artículo 1 elimine préstamos entre servicios públicos:
+en 2021-2024 hay préstamos de magnitud similar (Subsecretaría de Redes
+Asistenciales) y en esos años el artículo 1 y los cuadros cuadran. Que la
+diferencia sea idéntica en ingreso y gasto sugiere un cambio aplicado en
+un lugar de la ley y no en el otro. Los datos no permiten saber cuál de
+las dos cifras es la aprobada.
+
+**Implicancia:** el texto de la ley es el criterio de validación, pero no
+es infalible. Ante una diferencia con el dataset, primero hay que verificar
+que la ley cuadre consigo misma.
+
+| 11 | La ejecución por partida difiere de la de Contraloría | 2017-2025, líneas puntuales | `15b` las mide y las localiza por grupo de subtítulos; consulta Ley 20.285 pendiente |
+
+## 11. Ejecución por partida vs Contraloría (IGFE)
+
+La Contraloría publica cada año el Informe de la Gestión Financiera del Estado (IGFE), con el presupuesto inicial, el actualizado y el devengado por partida. Recibe los datos de los servicios desde SIGFE, el mismo sistema de origen que DIPRES, pero los compila, consolida y valida por su cuenta. Es la única fuente externa con ese nivel de detalle. Los PDF se descargan a mano desde contraloria.cl y se guardan en `raw/externo/cgr/`.
+
+**Lo autorizado coincide.** El presupuesto inicial y el actualizado por partida cuadran en casi todos los casos. La excepción es el Tesoro Público en 2020-2021, donde el dataset trae entre 0,36 y 0,56 billones de pesos más que la CGR, incluso en el presupuesto inicial. Como la Ley de Presupuestos 2020 se aprobó antes de la pandemia, el Fondo COVID no puede explicarlo. Una pista sin confirmar: en esos dos años existe en el Tesoro el programa "Financiamiento Gobiernos Regionales".
+
+**Lo ejecutado difiere en líneas puntuales, siempre las mismas.** Casi siempre el dataset informa menos que la CGR, y en cada partida la diferencia cae en un solo grupo de subtítulos, el mismo todos los años:
+
+| Partida | Dónde está la diferencia | Lectura |
+|---|---|---|
+| Salud | transferencias | La CGR queda entre la partida consolidada y la suma de capítulos: elimina menos transferencias internas que DIPRES |
+| Relaciones Exteriores | inversiones, todos los años | Partida = suma de capítulos, y aun así la CGR registra casi el doble. El dataset no tiene esos registros en ningún nivel |
+| Trabajo | prestaciones, 2017-2018 | Igual que RREE: unos 8 mil millones constantes que el dataset no tiene |
+| Poder Judicial | otros, 2017-2019 | El dataset trae préstamos (subt. 32) negativos y la CGR positivos: posible neteo de recuperaciones |
+| Gobiernos Regionales | todos los grupos | No comparable: la CGR obtiene su ejecución "de la información por región" |
+
+**Lo que se descartó:**
+- **Corte de fecha:** si fuera por registros posteriores al cierre, la diferencia aparecería en funcionamiento (personal y bienes y servicios), y ahí es prácticamente cero.
+- **Servicios distintos:** el número de servicios del IGFE coincide con los capítulos del dataset en RREE, Trabajo y Poder Judicial.
+
+**La CGR también corrige sus cifras.** En 18 partida·año, el devengado de un año cambió en informes posteriores, por "antecedentes adicionales recibidos de forma posterior al cierre". Los casos más grandes son OOPP 2018 (+134 mil millones) y Vivienda 2019 (+93 mil millones). En varios, el dataset coincide con la cifra corregida y no con la original. El `15b` compara siempre contra la más reciente.
+
+**Lo que no se puede saber desde afuera:** los IGFE revisados (2020, 2021 y 2025) no mencionan diferencias con DIPRES ni las concilian, y la CGR no publica cifras bajo el nivel partida. Queda pendiente una consulta por Ley 20.285 a DIPRES y a la CGR con los tres casos (Salud 2018, RREE inversiones y Poder Judicial préstamos).
+
+**Reproducir:** `python pipeline/3_validacion/15b_validar_vs_cgr.py` (requiere los IGFE en `raw/externo/cgr/` y `pip install pdfplumber`).

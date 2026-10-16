@@ -16,7 +16,7 @@ en vez de fallar.
 
 Bloques: ingresos (10, 18), estructura institucional (20), calidad de la
 fuente (05, 20, _versiones), modificaciones, ejecución y endeudamiento
-(16, 17, 11b).
+(16, 17, 11b), validación externa contra Contraloría (15b).
 
 Uso:
     python pipeline/5_informe/21_sintesis.py
@@ -642,23 +642,175 @@ def bloque_ejecucion() -> list[Hallazgo]:
     return out
 
 
+
+# =====================================================
+# Bloque: validación externa (Contraloría)
+# =====================================================
+COMPARABLES = ["cuadra", "difiere", "cuadra con otra partida"]
+GORE = 31      # la CGR obtiene su ejecución "de la información por región"
+
+
+def bloque_validacion() -> list[Hallazgo]:
+    out = []
+    try:
+        c = leer("validacion_cgr.csv")
+    except FileNotFoundError:
+        return [pendiente("VAL-1", "Validación contra Contraloría",
+                          "correr 15b_validar_vs_cgr.py")]
+    c = c[c.estado.isin(COMPARABLES)]
+    nombres = c.dropna(subset=["partida"]).groupby("partida").nombre.last()
+    anios = sorted(c.anio.unique())
+    periodo = f"{anios[0]}-{anios[-1]}"
+
+    # VAL-1 — lo autorizado
+    cuenta = {}
+    for conc in ["inicial", "actualizado"]:
+        g = c[c.concepto == conc]
+        cuenta[conc] = (int(g.estado.str.startswith("cuadra").sum()), len(g))
+    ley = c[c.concepto.isin(["inicial", "actualizado"]) & (c.estado == "difiere")]
+    grandes = ley[ley.delta.abs() > 10_000]
+    unidad = {"PESOS": "millones de $", "DOLARES": "miles de US$"}
+    excep = ""
+    if not grandes.empty:
+        casos = (grandes.groupby(["partida", "moneda"])
+                 .agg(anios=("anio", lambda a: sorted(set(a))),
+                      dmin=("delta", "min"), dmax=("delta", "max")))
+        partes = [f"{nombre(nombres.get(p, p))} "
+                  f"({', '.join(str(a) for a in r.anios)}: dataset − CGR entre "
+                  f"{num(r.dmin)} y {num(r.dmax)} {unidad[m]})"
+                  if r.dmin != r.dmax else
+                  f"{nombre(nombres.get(p, p))} "
+                  f"({', '.join(str(a) for a in r.anios)}: dataset − CGR "
+                  f"{num(r.dmin)} {unidad[m]})"
+                  for (p, m), r in casos.iterrows()]
+        resto = ley.drop(grandes.index)
+        tope = (f"no superan {num(resto.delta.abs().max())} millones de $ "
+                f"o miles de US$" if not resto.empty else "son de redondeo")
+        excep = (f" Las demás diferencias {tope}. Las excepciones son "
+                 + "; ".join(partes) + ", sin explicación en los informes.")
+    out.append(Hallazgo(
+        "VAL-1", "El presupuesto publicado por DIPRES coincide con el de "
+                 "Contraloría",
+        f"Por partida, {periodo}: el presupuesto inicial cuadra en "
+        f"{cuenta['inicial'][0]} de {cuenta['inicial'][1]} partida·año·moneda "
+        f"y el actualizado en {cuenta['actualizado'][0]} de "
+        f"{cuenta['actualizado'][1]}.{excep}",
+        "Informe de la Gestión Financiera del Estado (IGFE) de la Contraloría, "
+        "estado de situación presupuestaria de gastos por partida, que elimina "
+        "solo las transferencias dentro de cada partida, igual que "
+        "cruce_partida. Gastos 21-34 a diciembre; tolerancia ±2 millones de $ "
+        "o miles de US$ por redondeo.",
+        "15b_validar_vs_cgr.py → validacion_cgr.csv, cgr_partidas.csv",
+        "La CGR recibe los datos desde SIGFE, el mismo sistema de origen que "
+        "DIPRES, pero los compila y valida por su cuenta. La prueba verifica "
+        "la agregación que publica DIPRES, no el registro de cada servicio. "
+        "Los tribunales, el CPLT, el INDH y la Defensoría de la Niñez figuran "
+        "en el IGFE pero no como partida en datos.gob.cl.",
+        solidez="alta"))
+
+    # VAL-2 — lo ejecutado
+    d = c[c.concepto == "devengado"]
+    ok = int(d.estado.str.startswith("cuadra").sum())
+    dif = d[(d.estado == "difiere") & (d.partida != GORE)]
+    menor = int((dif.delta < 0).sum())
+    rel = (dif.delta.abs() / dif.cgr.abs()).dropna()
+    bajo1 = int((rel < 0.01).sum())
+
+    patron, recurrentes = "", ""
+    try:
+        s = leer("validacion_cgr_subtitulo.csv")
+        s = s[s.partida != GORE]
+        s["abs"] = s.delta.abs()
+        tot = s.groupby(["anio", "moneda", "partida"])["abs"].transform("sum")
+        s = s[tot > 50]
+        top = s.loc[s.groupby(["anio", "moneda", "partida"])["abs"].idxmax()]
+        top = top.assign(cuota=top["abs"] / s.groupby(
+            ["anio", "moneda", "partida"])["abs"].sum().values)
+        conc = top[top.cuota >= 0.8]
+        patron = (f" De los {len(top)} partida·año con diferencia que tienen "
+                  f"desglose por subtítulo en el IGFE, en {len(conc)} el 80% o "
+                  f"más se concentra en un solo grupo.")
+        rec = (conc.groupby(["partida", "grupo", "moneda"]).anio.nunique()
+               .sort_values(ascending=False))
+        rec = rec[rec >= 4].head(4)
+        if not rec.empty:
+            recurrentes = (" Se repite en los mismos lugares: " + "; ".join(
+                f"{nombre(nombres.get(p, p))}, {g}"
+                f"{' (US$)' if m == 'DOLARES' else ''} ({n} años)"
+                for (p, g, m), n in rec.items()) + ".")
+    except FileNotFoundError:
+        pass
+
+    revis = ""
+    try:
+        rv = leer("cgr_revisiones.csv")
+        rv = rv[rv.moneda == "PESOS"]
+        if not rv.empty:
+            m = rv.loc[rv.cambio.abs().idxmax()]
+            revis = (f" La propia CGR corrigió en informes posteriores el "
+                     f"devengado de {len(rv)} partida·año (el mayor: "
+                     f"{nombre(m.nombre)} {int(m.anio)}, "
+                     f"{num(m.cambio, 0)} millones de $); la comparación usa "
+                     f"la cifra corregida.")
+    except FileNotFoundError:
+        pass
+
+    out.append(Hallazgo(
+        "VAL-2", "La ejecución publicada difiere de la de Contraloría en "
+                 "líneas puntuales, siempre las mismas",
+        f"El devengado por partida cuadra en {ok} de {len(d)} partida·año·"
+        f"moneda. En las diferencias (sin Gobiernos Regionales), el dataset "
+        f"informa menos que la CGR en {menor} de {len(dif)} casos, y en "
+        f"{bajo1} la diferencia es menor al 1% de la partida.{patron}"
+        f"{recurrentes}{revis}",
+        "Devengado del IGFE (cifra más reciente publicada por la CGR para cada "
+        "año) contra ejecución acumulada a diciembre de cruce_partida, total y "
+        "por grupo de subtítulos (tabla de gastos devengados por partida y "
+        "subtítulo del IGFE).",
+        "15b_validar_vs_cgr.py → validacion_cgr.csv, "
+        "validacion_cgr_subtitulo.csv, cgr_revisiones.csv",
+        "Ambas fuentes cubren los mismos servicios en las partidas revisadas "
+        "(conteo de servicios del IGFE vs capítulos del dataset). La CGR "
+        "consolida datos recibidos hasta febrero o marzo del año siguiente. "
+        "Los IGFE no explican las diferencias ni concilian con DIPRES, y la "
+        "CGR no publica cifras bajo el nivel partida, por lo que la línea "
+        "exacta no se puede identificar desde afuera. Gobiernos Regionales se "
+        "excluye: la CGR obtiene su ejecución de otra fuente (información por "
+        "región).",
+        solidez="media",
+        explicacion="Tres tipos, según dónde cae la diferencia: (1) "
+        "consolidación: en Salud la CGR elimina menos transferencias internas "
+        "que DIPRES (queda entre la partida consolidada y la suma de "
+        "capítulos); (2) registros que el dataset no tiene en ningún nivel: "
+        "RREE inversiones y Trabajo prestaciones (2017-2018), donde partida y "
+        "suma de capítulos coinciden y aun así la CGR registra más; (3) "
+        "posible neteo: Poder Judicial informa préstamos negativos en el "
+        "dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a "
+        "DIPRES y a la CGR con estos casos."))
+    return out
+
+
 # =====================================================
 # Informe
 # =====================================================
 BLOQUES = [("Ingresos: proyección y recaudación", bloque_ingresos),
            ("Modificaciones, ejecución y endeudamiento", bloque_ejecucion),
            ("Estructura institucional", bloque_estructura),
-           ("Calidad de la fuente", bloque_calidad)]
+           ("Calidad de la fuente", bloque_calidad),
+           ("Validación externa", bloque_validacion)]
 
 ALCANCE_GENERAL = """\
 **Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno \
 Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de \
-las leyes de presupuestos 2017-2026 y cifras del Informe de Finanzas Públicas.
+las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas \
+y el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025).
 
 **Seguridad razonable** para los niveles nacional y partida al cierre de cada \
 año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de \
 5.929 combinaciones partida·subtítulo (las 2 restantes son errores del texto \
-de la ley), y los ingresos concilian con la cifra oficial. Los niveles \
+de la ley), el presupuesto por partida coincide con el de Contraloría y los \
+ingresos concilian con la cifra oficial. La ejecución por partida difiere de \
+la de Contraloría en líneas puntuales (VAL-2). Los niveles \
 capítulo y programa tienen inconsistencias de publicación documentadas en \
 [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 

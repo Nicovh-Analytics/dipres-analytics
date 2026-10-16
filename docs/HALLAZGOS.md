@@ -1,12 +1,12 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 13-10-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 16-10-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
-**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026 y cifras del Informe de Finanzas Públicas.
+**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas y el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025).
 
-**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son errores del texto de la ley), y los ingresos concilian con la cifra oficial. Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
+**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son errores del texto de la ley), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 
 **Lo que el dataset no ve:** leyes dictadas durante el año, gastos excedibles, detalle de emisiones de deuda. Por eso ningún hallazgo concluye "incumple": cuando algo no se explica con los datos, se indica que requiere respaldo legal.
 
@@ -33,6 +33,8 @@
 | EST-4 | Los traslados a mitad de año dividen el presupuesto entre dos partidas, sin duplicarlo | alta |
 | CAL-1 | Los descuadres entre niveles de DIPRES se explican por instituciones creadas a mitad de año | alta |
 | CAL-2 | Los archivos de DIPRES requieren correcciones puntuales para leerse completos | alta |
+| VAL-1 | El presupuesto publicado por DIPRES coincide con el de Contraloría | alta |
+| VAL-2 | La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas | media |
 
 ## Ingresos: proyección y recaudación
 
@@ -233,3 +235,27 @@
 **Evidencia.** `05_consolidar.py → _log_consolidar_<nivel>.json`
 
 **Alcance.** La regla del doble exacto es conservadora: líneas repetidas con nombres distintos se mantienen (código de asignación reutilizado en 2025). Detalle en CALIDAD_FUENTE.md.
+
+## Validación externa
+
+### VAL-1 · El presupuesto publicado por DIPRES coincide con el de Contraloría
+
+**Condición.** Por partida, 2017-2025: el presupuesto inicial cuadra en 305 de 310 partida·año·moneda y el actualizado en 296 de 310. Las demás diferencias no superan 4.499 millones de $ o miles de US$. Las excepciones son Ministerio de Educación (2018: dataset − CGR -12.921 millones de $); Tesoro Público (2018: dataset − CGR -1.058.809 miles de US$); Tesoro Público (2020, 2021: dataset − CGR entre 357.403 y 560.156 millones de $), sin explicación en los informes.
+
+**Criterio.** Informe de la Gestión Financiera del Estado (IGFE) de la Contraloría, estado de situación presupuestaria de gastos por partida, que elimina solo las transferencias dentro de cada partida, igual que cruce_partida. Gastos 21-34 a diciembre; tolerancia ±2 millones de $ o miles de US$ por redondeo.
+
+**Evidencia.** `15b_validar_vs_cgr.py → validacion_cgr.csv, cgr_partidas.csv`
+
+**Alcance.** La CGR recibe los datos desde SIGFE, el mismo sistema de origen que DIPRES, pero los compila y valida por su cuenta. La prueba verifica la agregación que publica DIPRES, no el registro de cada servicio. Los tribunales, el CPLT, el INDH y la Defensoría de la Niñez figuran en el IGFE pero no como partida en datos.gob.cl.
+
+### VAL-2 · La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas
+
+**Condición.** El devengado por partida cuadra en 200 de 310 partida·año·moneda. En las diferencias (sin Gobiernos Regionales), el dataset informa menos que la CGR en 97 de 107 casos, y en 84 la diferencia es menor al 1% de la partida. De los 85 partida·año con diferencia que tienen desglose por subtítulo en el IGFE, en 74 el 80% o más se concentra en un solo grupo. Se repite en los mismos lugares: Ministerio de Defensa Nacional, inversiones (US$) (8 años); Ministerio de Salud, transferencias (7 años); Ministerio de Relaciones Exteriores, inversiones (7 años); Ministerio de Educación, transferencias (5 años). La propia CGR corrigió en informes posteriores el devengado de 17 partida·año (el mayor: Ministerio de Obras Públicas 2018, 133.994 millones de $); la comparación usa la cifra corregida.
+
+**Criterio.** Devengado del IGFE (cifra más reciente publicada por la CGR para cada año) contra ejecución acumulada a diciembre de cruce_partida, total y por grupo de subtítulos (tabla de gastos devengados por partida y subtítulo del IGFE).
+
+**Evidencia.** `15b_validar_vs_cgr.py → validacion_cgr.csv, validacion_cgr_subtitulo.csv, cgr_revisiones.csv`
+
+**Alcance.** Ambas fuentes cubren los mismos servicios en las partidas revisadas (conteo de servicios del IGFE vs capítulos del dataset). La CGR consolida datos recibidos hasta febrero o marzo del año siguiente. Los IGFE no explican las diferencias ni concilian con DIPRES, y la CGR no publica cifras bajo el nivel partida, por lo que la línea exacta no se puede identificar desde afuera. Gobiernos Regionales se excluye: la CGR obtiene su ejecución de otra fuente (información por región).
+
+**Explicación de la diferencia.** Tres tipos, según dónde cae la diferencia: (1) consolidación: en Salud la CGR elimina menos transferencias internas que DIPRES (queda entre la partida consolidada y la suma de capítulos); (2) registros que el dataset no tiene en ningún nivel: RREE inversiones y Trabajo prestaciones (2017-2018), donde partida y suma de capítulos coinciden y aun así la CGR registra más; (3) posible neteo: Poder Judicial informa préstamos negativos en el dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a DIPRES y a la CGR con estos casos.
