@@ -136,6 +136,8 @@ La Contraloría publica cada año el Informe de la Gestión Financiera del Estad
 
 **Lo autorizado coincide.** El presupuesto inicial y el actualizado por partida cuadran en casi todos los casos. La excepción es el Tesoro Público en 2020-2021, donde el dataset trae entre 0,36 y 0,56 billones de pesos más que la CGR, incluso en el presupuesto inicial. Como la Ley de Presupuestos 2020 se aprobó antes de la pandemia, el Fondo COVID no puede explicarlo. Una pista sin confirmar: en esos dos años existe en el Tesoro el programa "Financiamiento Gobiernos Regionales".
 
+El Tesoro 2018 en moneda extranjera también difiere: la CGR registra un presupuesto actualizado de US$ 8.821 millones y el dataset US$ 7.763 millones, mientras el devengado coincide.
+
 **Lo ejecutado difiere en líneas puntuales, siempre las mismas.** Casi siempre el dataset informa menos que la CGR, y en cada partida la diferencia cae en un solo grupo de subtítulos, el mismo todos los años:
 
 | Partida | Dónde está la diferencia | Lectura |
@@ -144,6 +146,8 @@ La Contraloría publica cada año el Informe de la Gestión Financiera del Estad
 | Relaciones Exteriores | inversiones, todos los años | Partida = suma de capítulos, y aun así la CGR registra casi el doble. El dataset no tiene esos registros en ningún nivel |
 | Trabajo | prestaciones, 2017-2018 | Igual que RREE: unos 8 mil millones constantes que el dataset no tiene |
 | Poder Judicial | otros, 2017-2019 | El dataset trae préstamos (subt. 32) negativos y la CGR positivos: posible neteo de recuperaciones |
+| Defensa (US$) | inversiones, 2017-2021 | Mismo patrón que RREE: operaciones en el exterior, entre US$ 3 y 15 millones al año |
+| Interior | transferencias, 2022 | Un solo año, 6% de la partida; posible relación con el financiamiento de los Gobiernos Regionales |
 | Gobiernos Regionales | todos los grupos | No comparable: la CGR obtiene su ejecución "de la información por región" |
 
 **Lo que se descartó:**
@@ -152,6 +156,6 @@ La Contraloría publica cada año el Informe de la Gestión Financiera del Estad
 
 **La CGR también corrige sus cifras.** En 18 partida·año, el devengado de un año cambió en informes posteriores, por "antecedentes adicionales recibidos de forma posterior al cierre". Los casos más grandes son OOPP 2018 (+134 mil millones) y Vivienda 2019 (+93 mil millones). En varios, el dataset coincide con la cifra corregida y no con la original. El `15b` compara siempre contra la más reciente.
 
-**Lo que no se puede saber desde afuera:** los IGFE revisados (2020, 2021 y 2025) no mencionan diferencias con DIPRES ni las concilian, y la CGR no publica cifras bajo el nivel partida. Queda pendiente una consulta por Ley 20.285 a DIPRES y a la CGR con los tres casos (Salud 2018, RREE inversiones y Poder Judicial préstamos).
+**Lo que no se puede saber desde afuera:** ninguno de los IGFE de 2017 a 2025 menciona diferencias con DIPRES ni las concilia, y la CGR no publica cifras bajo el nivel partida. El 16-10-2026 se enviaron consultas por Ley 20.285 a DIPRES y a la CGR con los casos materiales (diferencia ≥ 1% de la partida y ≥ 1.000 millones de $ o miles de US$, por moneda): Salud 2017, 2018 y 2025; RREE y Defensa (inversiones); Poder Judicial 2018-2019; Interior 2022, y Tesoro 2018 US$. Detalle en consultas_transparencia.md.
 
 **Reproducir:** `python pipeline/3_validacion/15b_validar_vs_cgr.py` (requiere los IGFE en `raw/externo/cgr/` y `pip install pdfplumber`).
