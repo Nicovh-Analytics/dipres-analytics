@@ -145,3 +145,5 @@ python run.py --solo analisis
 - [x] Síntesis de hallazgos en formato de auditoría
 - [ ] Cruce a nivel programa por subtítulo e ítem
 - [ ] Visualización
+- [x] Validación externa contra el IGFE de Contraloría (presupuesto y ejecución por partida)
+- [ ] Respuesta a consultas por Ley 20.285 (DIPRES y CGR, enviadas el 16-10-2026)
