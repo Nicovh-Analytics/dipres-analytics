@@ -1,3 +1,25 @@
+# DIPRES — Auditoría de datos presupuestarios
+
+> En desarrollo · hallazgos preliminares, metodología en revisión.
+
+Este proyecto examina si los datos de ejecución presupuestaria que DIPRES
+publica en [datos.gob.cl](https://datos.gob.cl) permiten fiscalizar el gasto
+del Gobierno Central (2017–2026), y si la ejecución se ajusta a lo que la ley
+autoriza. No busca describir en qué gasta el Estado —eso ya lo hace el
+Observatorio del Gasto Fiscal—, sino evaluar la calidad y el alcance del dato
+publicado.
+
+Para eso, los datos se contrastan con tres referencias:
+
+1. **Consigo mismos**: consistencia entre niveles (nacional, partida, capítulo, programa) y entre meses.
+2. **Con la norma**: el texto de cada Ley de Presupuestos (artículo 1 y cuadros por partida), desde [LeyChile](https://www.bcn.cl/leychile).
+3. **Con un tercero**: el Informe de la Gestión Financiera del Estado de la Contraloría.
+
+**Dónde mirar:** los hallazgos con su evidencia están en
+[`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), los problemas de la fuente en
+[`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md), y cómo reproducir todo en
+[Reproducir](#reproducir).
+
 ## Hallazgos
 
 Resumen de los 19 hallazgos. El detalle de cada uno (condición, criterio,
