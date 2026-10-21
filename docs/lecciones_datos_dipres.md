@@ -7,7 +7,12 @@ al trabajar con los datos de ejecución presupuestaria y ley de presupuestos
 publicados por DIPRES en datos.gob.cl vía la API CKAN.
 
 Período analizado: 2017–2026.
-Última actualización: septiembre 2026.
+Última actualización: octubre 2026.
+
+Este documento reúne lecciones de **método** (cómo leer y tratar estos
+datos). Los hallazgos concretos sobre la fuente, con su evidencia, están en
+[CALIDAD_FUENTE.md](CALIDAD_FUENTE.md); los hallazgos de análisis, en
+[HALLAZGOS.md](HALLAZGOS.md).
 
 ---
 
@@ -41,9 +46,11 @@ ni entre familias de datos (ley vs ejecución).
 ### Soluciones aplicadas
 
 ```python
-# 1. Siempre usar index_col=False al leer CSVs de DIPRES
-df = pd.read_csv(ruta, sep=sep, encoding=encoding,
-                 on_bad_lines="skip", index_col=False)
+# 1. Siempre usar index_col=False al leer CSVs de DIPRES, y nunca descartar
+#    filas mal formadas en silencio: contarlas y repararlas
+#    (dipres/utils.py → leer_csv_robusto; 05_consolidar.py repara el ";"
+#    dentro de nombres)
+df = pd.read_csv(ruta, sep=sep, encoding=encoding, index_col=False)
 
 # 2. Normalizar tildes en nombres de columna
 rename_map = {}
@@ -187,12 +194,16 @@ entre períodos.
 
 ### Orden de ejecución
 
-```
-01_descargar.py    → Bajar CSVs de datos.gob.cl via API CKAN
-04_profiler.py     → Detectar estructura y anomalías en CSVs crudos
-05_transformar.py  → Normalizar, limpiar y consolidar
-06_validar.py      → Verificar consistencia de los consolidados
-```
+Extracción → consolidación → validación → análisis → informe, una carpeta
+por etapa en `pipeline/`. `python run.py --lista` muestra los scripts de cada
+etapa; el detalle está en el [README](../README.md).
+
+La validación tiene tres capas, de adentro hacia afuera:
+1. **Interna** (`06`): consistencia del propio dataset entre niveles y meses.
+2. **Contra la norma** (`14`, `15`): el dataset contra el texto de la Ley de
+   Presupuestos (artículo 1 y cuadros por partida).
+3. **Contra un tercero** (`15b`): el dataset contra el Informe de la Gestión
+   Financiera del Estado de la Contraloría.
 
 ### Checks del profiler (pre-transformación)
 - Detectar separador y encoding por archivo
@@ -288,25 +299,23 @@ NOT(ISBLANK(Asignación)) para detalle.
 
 ---
 
-## 9. Duplicados en ley_programa
+## 9. Duplicados en la ley
 
 ### Problema
-46 filas duplicadas en las keys de programa, donde mismas keys
-tienen montos de ley distintos (uno aproximadamente el doble del otro).
-
-### Hallazgo
-- Vienen 100% del lado **ley**, no de ejecución
-- Concentrados en 3 entidades: Fisco (32), Gob Regional Maule (10), ANID (4)
-- Solo en años 2017, 2020, 2025 y 2026
-- Ejecución idéntica en ambas copias, solo difiere ley_inicial/ley_vigente
-
-### Causa probable
-Doble publicación: antes y después de una modificación presupuestaria,
-con ambas versiones quedando en el archivo en vez de reemplazarse.
+Líneas de ley repetidas con las mismas claves y nombres, donde una copia trae
+exactamente el doble del monto de la otra (por ejemplo, Primera Categoría en
+enero de 2020: 8,26 y 16,51 billones de pesos).
 
 ### Tratamiento
-Despreciable (0.003% de las filas). Manejar con MAX por grupo de keys,
-o documentar como limitación conocida del dato fuente.
+`05_consolidar.py` descarta la copia doble cuando el doble es exacto en ley
+inicial y en ley vigente, y registra cada descarte en el log. Las líneas
+repetidas con nombres distintos se conservan: son instituciones distintas
+con el mismo código (caso de 2025, partida 50).
+
+### Lección
+Una regla de limpieza debe ser lo bastante estrecha para no tocar casos
+legítimos, y dejar rastro de cada fila que modifica. Detalle en
+CALIDAD_FUENTE.md, sección 2.
 
 ---
 
@@ -331,27 +340,38 @@ El sistema no permite registrar sin clasificar.
   y formatos, no en nivel de granularidad
 
 ### Hallazgo
-No existe obligación explícita de que la publicación como open data
-mantenga el mismo nivel de detalle que existe en SIGFE. Lo publicado
-es veraz (los totales cuadran) pero incompleto (falta desglose que
-sí existe internamente). Información incompleta no satisface
-plenamente el estándar de veracidad de la Ley 20.285.
+No se encontró una obligación explícita de que la publicación como datos
+abiertos mantenga el mismo nivel de detalle que existe en SIGFE. Lo
+publicado cuadra en sus totales, pero omite desglose que sí existe
+internamente. Desde afuera se pueden detectar señales y anomalías (dónde
+mirar), pero no probar una falla de control: esa prueba vive en el dato
+interno o en terreno.
 
 ---
 
 ## 11. Validación externa
 
-### Fuentes evaluadas
-- **datos.gob.cl** y **dipres.gob.cl**: misma fuente (SIGFE),
-  distinta presentación. Números idénticos al comparar. No aporta
-  validación cruzada independiente.
-- **Fuentes independientes** (no exploradas aún): Contraloría General
-  de la República, Banco Central (cuentas nacionales).
+### Qué sirve y qué no
+- **datos.gob.cl y dipres.gob.cl**: misma fuente (SIGFE) con distinta
+  presentación. No aportan validación cruzada.
+- **Banco Central, FMI, Consejo Fiscal Autónomo**: usan cifras de DIPRES.
+  Tampoco son independientes.
+- **Contraloría (IGFE)**: recibe los datos desde el mismo sistema de origen,
+  pero los compila, consolida y valida por su cuenta. Es la única fuente
+  externa con detalle por partida. Se usa en `15b_validar_vs_cgr.py`.
 
-### Recomendación
-Para validación externa real, usar los informes trimestrales de
-Contraloría o las estadísticas de finanzas públicas del Banco Central,
-que son fuentes construidas con procesos independientes.
+### Lecciones del contraste con Contraloría
+- **Comparar contra la cifra más reciente.** La CGR corrige en informes
+  posteriores cifras que ya publicó; comparar contra la del informe del
+  propio año produce diferencias falsas.
+- **Ubicar la diferencia antes de explicarla.** Desagregar por grupo de
+  subtítulos descartó la hipótesis del corte de fecha: las diferencias no
+  estaban en funcionamiento, sino siempre en el mismo grupo de cada partida.
+- **Saber cuándo parar.** Cuando la fuente externa no publica bajo cierto
+  nivel, lo que queda es documentar el límite y preguntar formalmente (Ley
+  20.285), no especular.
+
+Resultados en HALLAZGOS.md (VAL-1, VAL-2) y CALIDAD_FUENTE.md, sección 11.
 
 ---
 

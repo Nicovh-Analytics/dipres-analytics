@@ -44,6 +44,15 @@ capítulos pasaron de 208 a 268. El traspaso de la educación municipal se ve
 completo: 59 Servicios Locales de Educación. Entre 2018 y 2020, el 79% de los
 cambios ocurrió a mitad de año; entre 2022 y 2026, solo el 9%.
 
+**El presupuesto publicado coincide con el de Contraloría; la ejecución no siempre.**
+Contrastado con el Informe de la Gestión Financiera del Estado (CGR, 2017-2025),
+el presupuesto por partida cuadra en 305 de 310 casos. El devengado difiere en
+líneas puntuales, casi siempre con el dataset por debajo y en las mismas partidas
+cada año (RREE todos los años). Los informes no explican la diferencia; se
+enviaron consultas por Ley 20.285 a DIPRES y a la CGR.
+
+![Diferencias DIPRES vs Contraloría](docs/graficos/val2_dataset_vs_cgr.png)
+
 **Calidad de la fuente.**
 En 59 casos una partida suma más que sus capítulos, algo que no puede
 deberse a la consolidación. El 86% coincide con un servicio creado a mitad
