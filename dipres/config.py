@@ -24,7 +24,7 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 
 # Los datos viven fuera del repo. Sobrescribible por entorno:
 #     set DIPRES_HOME=E:\otro\path
-BASE_DIR = Path(os.environ.get("DIPRES_HOME", r"D:\dipres-datos"))
+BASE_DIR = Path(os.environ.get("DIPRES_HOME", r"D:\data\dipres-datos"))
 
 # =====================================================
 # DIRECTORIOS

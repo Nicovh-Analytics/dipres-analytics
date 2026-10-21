@@ -66,7 +66,7 @@ run.py         corre el pipeline por etapas
 ```
 
 Los datos viven fuera del repo. La ruta se define con la variable de
-entorno `DIPRES_HOME` (por defecto `D:\dipres-datos`):
+entorno `DIPRES_HOME` (por defecto `D:\data\dipres-datos`):
 
 ```
 raw/          descargado; las versiones reemplazadas quedan en _versiones/
@@ -119,7 +119,7 @@ Detalle en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md) y
 ```bash
 git clone <url> && cd dipres-analytics
 pip install -e .
-export DIPRES_HOME=/d/dipres-datos     # Git Bash; ajustar
+export DIPRES_HOME=/d/data/dipres-datos     # Git Bash; ajustar
 python run.py --lista                  # etapas y scripts
 python run.py --todo                   # descarga → informe
 python run.py                          # desde consolidación (sin red)

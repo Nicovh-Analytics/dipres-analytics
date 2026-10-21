@@ -1,0 +1,154 @@
+"""
+viz.py — Estilo común de los gráficos del proyecto
+===================================================
+Paleta, tipografía y exportación, para que todos los gráficos se vean
+como un solo sistema. Cada gráfico se guarda dos veces:
+  docs/graficos/<nombre>.png   estático, para el README y HALLAZGOS.md
+  docs/graficos/<nombre>.html  interactivo (hover, zoom), para GitHub Pages
+
+Paleta: la de referencia del método de visualización (categórica en orden
+fijo, divergente azul ↔ rojo con gris neutro al centro).
+
+Requiere: pip install plotly kaleido
+(kaleido usa Chrome para el PNG; si no lo encuentra: plotly_get_chrome)
+"""
+
+from pathlib import Path
+
+import plotly.graph_objects as go
+import plotly.io as pio
+
+from dipres.config import DIRS
+
+SALIDA = DIRS["docs"] / "graficos"
+
+# ── Tinta y superficies (modo claro) ─────────────────
+SUPERFICIE = "#fcfcfb"
+TINTA = "#0b0b0b"
+TINTA_2 = "#52514e"
+TINTA_MUTED = "#898781"
+GRILLA = "#e1e0d9"
+EJE = "#c3c2b7"
+NEUTRO = "#f0efec"          # punto medio divergente: "sin diferencia"
+
+FUENTE = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+
+# Categórica, en orden fijo (nunca se cicla ni se reordena por ranking)
+CATEGORICA = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+              "#e87ba4", "#008300", "#6250d6", "#e34948"]
+
+# Divergente: rojo (negativo) ↔ gris ↔ azul (positivo), tres pasos por brazo
+DIVERGENTE = [
+    [0.00, "#a8262a"], [0.25, "#e34948"], [0.42, "#f4b4b0"],
+    [0.50, NEUTRO],
+    [0.58, "#9ec5f4"], [0.75, "#2a78d6"], [1.00, "#184f95"],
+]
+
+
+def num(x: float, dec: int = 0) -> str:
+    """Formato es-CL: punto de miles, coma decimal."""
+    s = f"{x:,.{dec}f}"
+    return s.replace(",", "§").replace(".", ",").replace("§", ".")
+
+
+def monto_mm(x: float) -> str:
+    """
+    Millones de pesos en palabras legibles: 950 millones · 265,2 mil millones ·
+    4,23 billones (billón chileno = millón de millones).
+    """
+    a, signo = abs(x), ("−" if x < 0 else "")
+    if a >= 1_000_000:
+        return f"{signo}{num(a / 1_000_000, 2)} billones de pesos"
+    if a >= 1_000:
+        return f"{signo}{num(a / 1_000, 1)} mil millones de pesos"
+    return f"{signo}{num(a)} millones de pesos"
+
+
+# Firma de autoría: va en todos los gráficos, discreta, abajo a la derecha
+FIRMA = "nicovh-analytics | dipres-analytics"
+
+
+def titulo(principal: str, sub: str) -> dict:
+    """Título centrado + subtítulo con qué se mide."""
+    return dict(
+        text=(f"<b>{principal}</b><br>"
+              f"<span style='font-size:13px;color:{TINTA_2}'>{sub}</span>"),
+        x=0.5, xanchor="center", y=0.985, yanchor="top",
+        font=dict(size=17, color=TINTA))
+
+
+def nota(fig: go.Figure, lineas: list[str]) -> None:
+    """
+    Notas y fuente al pie: centradas, en cursiva y tinta tenue.
+    Ojo: no usar "$" en textos de plotly; dos "$" en un mismo texto lo
+    convierten en fórmula LaTeX. Escribir "pesos".
+    """
+    fig.add_annotation(
+        text="<br>".join(f"<i>{l}</i>" for l in lineas),
+        xref="paper", yref="paper", x=0.5, y=0, yshift=-12,
+        xanchor="center", yanchor="top", showarrow=False, align="center",
+        font=dict(size=11, color=TINTA_MUTED))
+
+
+def firmar(fig: go.Figure, borde: int = 10) -> None:
+    """
+    Firma en la esquina inferior derecha del lienzo, a `borde` px del canto.
+    Las coordenadas "paper" son las del área de datos, así que se desplaza
+    por el margen derecho e inferior para llegar a la esquina del lienzo.
+    """
+    m = fig.layout.margin
+    fig.add_annotation(
+        text=FIRMA, xref="paper", yref="paper", x=1, y=0,
+        xshift=(m.r if m.r is not None else 80) - borde,
+        yshift=-((m.b if m.b is not None else 80) - borde),
+        xanchor="right", yanchor="bottom", showarrow=False,
+        font=dict(size=10, color=TINTA_MUTED))
+
+
+_plantilla = go.layout.Template()
+_plantilla.layout = go.Layout(
+    font=dict(family=FUENTE, size=12, color=TINTA_2),
+    paper_bgcolor=SUPERFICIE, plot_bgcolor=SUPERFICIE,
+    colorway=CATEGORICA,
+    xaxis=dict(gridcolor=GRILLA, linecolor=EJE, zeroline=False,
+               tickfont=dict(color=TINTA_2), ticks=""),
+    yaxis=dict(gridcolor=GRILLA, linecolor=EJE, zeroline=False,
+               tickfont=dict(color=TINTA_2), ticks=""),
+    hoverlabel=dict(bgcolor="white", bordercolor=EJE,
+                    font=dict(family=FUENTE, size=12, color=TINTA)),
+    separators=",.",          # decimales con coma, miles con punto
+)
+pio.templates["dipres"] = _plantilla
+pio.templates.default = "dipres"
+
+
+def guardar(fig: go.Figure, nombre: str, ancho: int = 1000,
+            alto: int = 600) -> list[Path]:
+    """
+    Escribe <nombre>.html (siempre) y <nombre>.png (si hay kaleido).
+    El tamaño queda fijo en el layout para que el HTML se vea igual que el
+    PNG (si no, plotly lo adapta al ancho de la ventana y todo se corre).
+    """
+    fig.update_layout(width=ancho, height=alto, autosize=False)
+    firmar(fig)
+    SALIDA.mkdir(parents=True, exist_ok=True)
+    html = SALIDA / f"{nombre}.html"
+    fig.update_layout(modebar=dict(orientation="v", bgcolor="rgba(0,0,0,0)",
+                                   color=TINTA_MUTED, activecolor=TINTA_2))
+    fig.write_html(html, include_plotlyjs="cdn", full_html=True, config={
+        "displaylogo": False, "locale": "es",
+        # Solo descargar imagen y restablecer vista: el resto (lazo,
+        # selección, paneo) no aporta en gráficos de lectura
+        "modeBarButtons": [["toImage", "resetScale2d"]],
+        "toImageButtonOptions": {"format": "png", "filename": nombre,
+                                 "scale": 2},
+    })
+    escritos = [html]
+    try:
+        png = SALIDA / f"{nombre}.png"
+        fig.write_image(png, scale=2)
+        escritos.append(png)
+    except Exception as e:                        # kaleido o Chrome ausentes
+        print(f"  ⚠ PNG no generado ({type(e).__name__}): {e}")
+        print("    Instalar: pip install kaleido · luego: plotly_get_chrome")
+    return escritos
