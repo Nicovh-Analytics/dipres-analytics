@@ -11,10 +11,13 @@ fijo, divergente azul ↔ rojo con gris neutro al centro).
 
 Requiere: pip install plotly kaleido
 (kaleido usa Chrome para el PNG; si no lo encuentra: plotly_get_chrome)
+Al final: funciones comunes a los scripts de gráficos (lectura de reportes,
+eje de años, formatos) y el ejecutor.
 """
 
 from pathlib import Path
 
+import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -73,19 +76,23 @@ def titulo(principal: str, sub: str) -> dict:
     return dict(
         text=(f"<b>{principal}</b><br>"
               f"<span style='font-size:13px;color:{TINTA_2}'>{sub}</span>"),
-        x=0.5, xanchor="center", y=0.985, yanchor="top",
-        font=dict(size=17, color=TINTA))
+        # Distancia al borde en px y no en fracción: con y=0.985 el título
+        # se cortaba en los gráficos bajos (1,5% de 520 px son 8 px)
+        x=0.5, xanchor="center", y=1, yref="container", yanchor="top",
+        pad=dict(t=26), font=dict(size=17, color=TINTA))
 
 
-def nota(fig: go.Figure, lineas: list[str]) -> None:
+def nota(fig: go.Figure, lineas: list[str], bajo_eje: bool = False) -> None:
     """
     Notas y fuente al pie: centradas, en cursiva y tinta tenue.
     Ojo: no usar "$" en textos de plotly; dos "$" en un mismo texto lo
     convierten en fórmula LaTeX. Escribir "pesos".
+    bajo_eje: True si el eje x tiene etiquetas abajo (la nota baja para no
+    montarse sobre ellas).
     """
     fig.add_annotation(
         text="<br>".join(f"<i>{l}</i>" for l in lineas),
-        xref="paper", yref="paper", x=0.5, y=0, yshift=-12,
+        xref="paper", yref="paper", x=0.5, y=0, yshift=-36 if bajo_eje else -12,
         xanchor="center", yanchor="top", showarrow=False, align="center",
         font=dict(size=11, color=TINTA_MUTED))
 
@@ -152,3 +159,62 @@ def guardar(fig: go.Figure, nombre: str, ancho: int = 1000,
         print(f"  ⚠ PNG no generado ({type(e).__name__}): {e}")
         print("    Instalar: pip install kaleido · luego: plotly_get_chrome")
     return escritos
+
+
+# =====================================================
+# Comunes a los scripts de gráficos (22 y 23)
+# =====================================================
+ULTIMO_ANIO = 2025              # último año cerrado que muestran los gráficos
+AZUL, NARANJA, AQUA = CATEGORICA[0], CATEGORICA[1], CATEGORICA[2]
+
+
+def leer(nombre: str, script: str) -> pd.DataFrame | None:
+    try:
+        return pd.read_csv(DIRS["reportes"] / f"{nombre}.csv",
+                           encoding="utf-8-sig")
+    except FileNotFoundError:
+        print(f"  · falta {nombre}.csv (correr {script})")
+        return None
+
+
+def pct_txt(x: float, dec: int = 1) -> str:
+    return f"{'+' if x > 0 else ''}{num(x, dec)}%"
+
+
+def ejes_anio(fig: go.Figure, anios) -> dict:
+    """
+    Eje x categórico de años. Devuelve {año: posición} para las anotaciones:
+    en un eje categórico, una anotación con x="2017" se lee como la posición
+    2017 y no como la categoría, y estira el eje hasta ahí.
+    """
+    anios = [int(a) for a in anios]
+    fig.update_xaxes(type="category", tickmode="array",
+                     tickvals=[str(a) for a in anios], showgrid=False,
+                     tickfont=dict(color=TINTA),
+                     # Rango fijo: si no, plotly ensancha el eje para que
+                     # quepan las anotaciones (las etiquetas finales del ING-1)
+                     range=[-0.5, len(anios) - 0.5])
+    return {a: i for i, a in enumerate(anios)}
+
+
+def titulo_caso(s) -> str:
+    """'MINISTERIO DE EDUCACIÓN' → 'Ministerio de Educación'."""
+    menores = {"de", "del", "la", "las", "los", "el", "y", "e", "a", "en"}
+    ps = str(s).strip().lower().split()
+    return " ".join(p if (i and p in menores) else p[:1].upper() + p[1:]
+                    for i, p in enumerate(ps))
+
+
+def ejecutar(graficos: dict, encabezado: str, ancho: int = 900) -> None:
+    """Genera cada gráfico de {nombre: función}; la función devuelve
+    (figura, alto) o None si faltan sus datos."""
+    print("=" * 78)
+    print(f"  {encabezado}")
+    print("=" * 78)
+    for nombre, f in graficos.items():
+        r = f()
+        if r is None:
+            continue
+        fig, alto = r
+        for p in guardar(fig, nombre, ancho=ancho, alto=alto):
+            print(f"  ✓ {p}")
