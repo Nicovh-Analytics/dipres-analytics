@@ -178,3 +178,7 @@ python run.py --solo analisis
 - [ ] Visualización
 - [x] Validación externa contra el IGFE de Contraloría (presupuesto y ejecución por partida)
 - [ ] Respuesta a consultas por Ley 20.285 (DIPRES y CGR, enviadas el 16-10-2026)
+
+## Sobre el uso de IA
+
+Este proyecto se desarrolló con Claude (Anthropic) como asistente de programación y análisis. Gran parte del código surgió de esa colaboración: yo definí las preguntas, el criterio de auditoría (qué contrastar, con qué fuente externa y con qué umbral de materialidad) y la interpretación de los resultados; revisé y ejecuté cada script y validé sus salidas contra las fuentes. Varias hipótesis, mías y de la IA, se descartaron al contrastarlas con los datos; quedan documentadas en [CALIDAD_FUENTE.md](docs/CALIDAD_FUENTE.md). Las consultas por Ley de Transparencia y la responsabilidad por lo publicado son mías.
