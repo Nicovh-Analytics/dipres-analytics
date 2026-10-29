@@ -24,8 +24,11 @@ Diferencias esperables, sin que haya error:
   - Bonos emitidos y vencidos entre dos reportes no aparecen en el 11c
 Una diferencia grande o de signo cambiante pide revisión.
 
-Salida en DIRS["reportes"]:
+Salidas en DIRS["reportes"]:
   deuda_cruce_subt14.csv   ventana × sección: bonos, subt. 14, diferencia
+  deuda_emisiones_usd.csv  cada emisión del 11c convertida a millones de US$
+                           (para 18d_margen_endeudamiento.py), con su
+                           ventana considerando todas las monedas juntas
 
 Uso:
     python pipeline/4_analisis/18c_cruce_bonos.py
@@ -60,6 +63,19 @@ def a_moneda_seccion(e: pd.DataFrame, tc: pd.DataFrame) -> pd.Series:
     f = [factores.get((d, h, m), 1.0)
          for d, h, m in zip(e.desde, e.hasta, e.moneda)]
     return e.emitido * pd.Series(f, index=e.index) * 1e3   # millones → miles
+
+
+def a_usd(e: pd.DataFrame, tc: pd.DataFrame) -> pd.Series:
+    """Emitido en millones de US$, con los promedios del periodo."""
+    factores = {}
+    for (desde, hasta), _ in e.groupby(["desde", "hasta"]):
+        dolar = promedio(tc, "dolar", desde, hasta)
+        factores[(desde, hasta, "CLP")] = 1 / dolar
+        factores[(desde, hasta, "UF")] = promedio(tc, "uf", desde, hasta) / dolar
+        factores[(desde, hasta, "EUR")] = promedio(tc, "euro", desde, hasta) / dolar
+    f = [factores.get((d, h, m), 1.0)
+         for d, h, m in zip(e.desde, e.hasta, e.moneda)]
+    return e.emitido * pd.Series(f, index=e.index)
 
 
 def ventanas(e: pd.DataFrame) -> pd.Series:
@@ -139,7 +155,16 @@ def main() -> None:
                   f"{incompleta}")
 
     c.to_csv(REP / "deuda_cruce_subt14.csv", index=False, encoding="utf-8-sig")
+
+    # Todas las monedas en US$, para el margen de endeudamiento (18d)
+    u = e.drop(columns=["seccion", "emitido_seccion", "ventana"]).copy()
+    u["emitido_musd"] = a_usd(u, tc)
+    u["seccion"] = "TOTAL"
+    u["ventana"] = ventanas(u)
+    u.drop(columns="seccion").to_csv(REP / "deuda_emisiones_usd.csv",
+                                     index=False, encoding="utf-8-sig")
     print(f"\n  Salida: {REP / 'deuda_cruce_subt14.csv'}")
+    print(f"          {REP / 'deuda_emisiones_usd.csv'}")
 
 
 if __name__ == "__main__":

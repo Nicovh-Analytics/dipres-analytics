@@ -9,7 +9,11 @@ No entra en el cómputo del margen:
   - la deuda contraída bajo la autorización y amortizada en el mismo
     ejercicio;
   - la contraída para prepagar deuda de ejercicios anteriores, deducidas
-    las amortizaciones incluidas en la ley.
+    las amortizaciones incluidas en la ley;
+  - la contraída para pagar bonos de reconocimiento (D.L. 3.500), que tiene
+    su propia autorización, fuera de los límites (inciso 5°, hasta US$1.000
+    millones en 2017-2018). Se lee como tope_reconocimiento y la usa
+    18d_margen_endeudamiento.py; este script no la suma al tope.
 
 Con datos presupuestarios no se puede reconstruir ese cómputo exacto (hace
 falta el detalle de cada emisión y su destino). Se acota por dos lados:
@@ -75,29 +79,44 @@ _RX_MONTO = re.compile(r"US\$\s*([\d.]+)\s*miles")
 # =====================================================
 # Tope legal
 # =====================================================
-def extraer_tope(anio: int) -> tuple[float | None, float | None, str]:
-    """(inciso 1, inciso 2, estado) en miles de US$ desde el texto."""
+def extraer_tope(anio: int) -> tuple[float | None, float | None,
+                                      float | None, str]:
+    """
+    (inciso 1, inciso 2, bonos de reconocimiento, estado) en miles de US$
+    desde el texto. El de reconocimiento se busca en la oración del Art. 3
+    que menciona los bonos de reconocimiento; si no está, queda en None.
+    """
     ruta = DIR_TEXTO / f"ley_presupuestos_{anio}_dipres_completo.txt"
     if not ruta.exists():
-        return None, None, f"no existe {ruta.name}"
+        return None, None, None, f"no existe {ruta.name}"
     t = ruta.read_text(encoding="utf-8").replace("�", ".")
     m = _RX_INICIO.search(t)
     if m is None:
-        return None, None, "no se ubicó el Art. 3"
+        return None, None, None, "no se ubicó el Art. 3"
     bloque = re.sub(r"\s+", " ", t[m.start():m.start() + 1500])
     montos = [float(x.replace(".", "")) for x in _RX_MONTO.findall(bloque)[:2]]
     if len(montos) < 2:
-        return None, None, f"se leyeron {len(montos)} montos, se esperaban 2"
-    return montos[0], montos[1], "ok"
+        return None, None, None, f"se leyeron {len(montos)} montos, se esperaban 2"
+    # Inciso 5°: el artículo sigue después del bloque de los dos topes
+    articulo = re.sub(r"\s+", " ", t[m.start():m.start() + 5000])
+    articulo = re.split(r"Art[íi]culo\s+4", articulo)[0]
+    reconoc = None
+    for oracion in re.split(r"(?<=[a-z\)])\.\s", articulo):
+        if "reconocimiento" in oracion.lower():
+            r = _RX_MONTO.findall(oracion)
+            if r:
+                reconoc = float(r[0].replace(".", ""))
+                break
+    return montos[0], montos[1], reconoc, "ok"
 
 
 def tabla_topes(anios) -> pd.DataFrame:
     filas = []
     for a in anios:
-        i1, i2, estado = extraer_tope(a)
+        i1, i2, rec, estado = extraer_tope(a)
         aj = sum(m for m, _ in TOPE_AJUSTES.get(a, []))
         filas.append({"Año": a, "tope_inciso1": i1, "tope_inciso2": i2,
-                      "tope_ajustes": aj,
+                      "tope_reconocimiento": rec, "tope_ajustes": aj,
                       "tope_total": (i1 + i2 + aj) if i1 is not None else None,
                       "estado_texto": estado})
     return pd.DataFrame(filas)

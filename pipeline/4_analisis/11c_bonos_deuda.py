@@ -43,6 +43,14 @@ Montos en la unidad de cada tabla:
 Salidas en DIRS["reportes"]:
   deuda_bonos.csv       RESPALDO: cada serie en cada reporte leído
   deuda_emisiones.csv   emitido por periodo y serie, en la moneda de la serie
+  deuda_prepagos.csv    prepagos de deuda por año (anexo "Prepagos de Deuda
+                        Interna y Externa"), en millones de US$, según el
+                        reporte más reciente que informa cada año
+
+Prepagos: cada reporte trae el anexo con todos los años desde 1995, y las
+ediciones posteriores corrigen cifras (2020: 6.813,9 en dic. 2024, 6.797,5
+en dic. 2025). Se usa la cifra del reporte más reciente y se informan las
+revisiones.
 
 Uso:
     python pipeline/4_analisis/11c_bonos_deuda.py
@@ -165,6 +173,33 @@ def leer_reporte(ruta: Path, corte: pd.Period) -> tuple[pd.DataFrame,
                         "total_colocado": numero(t["colocado"]),
                         "total_circulante": numero(t["circulante"])})
     return pd.DataFrame(filas), pd.DataFrame(totales)
+
+
+PREPAGO = re.compile(r"(?<!\d)((?:19|20)\d{2})\s+([\d\.]+,\d)\s+millones")
+
+
+def leer_prepagos(ruta: Path, corte: pd.Period) -> pd.DataFrame:
+    """Anexo de prepagos (millones de US$, face value consolidado)."""
+    filas = []
+    with pdfplumber.open(ruta) as pdf:
+        for pag in pdf.pages:
+            t = texto(pag)
+            if "Prepagos de Deuda Interna y Externa" not in t:
+                continue
+            for anio, monto in PREPAGO.findall(t):
+                filas.append({"anio": int(anio), "prepago_musd": numero(monto),
+                              "corte": str(corte)})
+            break
+    return pd.DataFrame(filas)
+
+
+def prepagos_vigentes(p: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Cifra del reporte más reciente por año, y las revisiones entre ediciones."""
+    p = p.drop_duplicates(["anio", "corte"]).sort_values(["anio", "corte"])
+    ult = p.groupby("anio").tail(1).reset_index(drop=True)
+    rev = (p.groupby("anio").prepago_musd.agg(["min", "max"])
+             .query("max - min > 0.05").reset_index())
+    return ult, rev
 
 
 def validar(bonos: pd.DataFrame, totales: pd.DataFrame) -> pd.DataFrame:
@@ -310,11 +345,12 @@ def main() -> None:
     if not rutas:
         print(f"  · no hay PDF en {DIR_DEUDA} (dic_AAAA.pdf)")
         return
-    partes_b, partes_t = [], []
+    partes_b, partes_t, partes_p = [], [], []
     for corte, r in sorted(rutas):
         b, t = leer_reporte(r, corte)
         partes_b.append(b)
         partes_t.append(t)
+        partes_p.append(leer_prepagos(r, corte))
         print(f"  {corte}: {len(b)} series leídas")
     bonos = pd.concat(partes_b, ignore_index=True)
     totales = pd.concat(partes_t, ignore_index=True)
@@ -346,10 +382,20 @@ def main() -> None:
         print(raros[["periodo", "serie", "emision", "colocado_anterior",
                      "colocado", "estado"]].to_string(index=False))
 
+    pre, rev = prepagos_vigentes(pd.concat(partes_p, ignore_index=True))
+    print("\n  Prepagos por año (millones de US$, reporte más reciente)")
+    print("    " + " · ".join(f"{r.anio}: {r.prepago_musd:,.1f}"
+                              for r in pre[pre.anio >= 2016].itertuples()))
+    for r in rev.itertuples():
+        print(f"    ⚠ {r.anio}: revisado entre ediciones ({r.min:,.1f} a "
+              f"{r.max:,.1f})")
+
+    pre.to_csv(REP / "deuda_prepagos.csv", index=False, encoding="utf-8-sig")
     bonos.to_csv(REP / "deuda_bonos.csv", index=False, encoding="utf-8-sig")
     e.to_csv(REP / "deuda_emisiones.csv", index=False, encoding="utf-8-sig")
     print(f"\n  Salida: {REP / 'deuda_bonos.csv'}")
     print(f"          {REP / 'deuda_emisiones.csv'}")
+    print(f"          {REP / 'deuda_prepagos.csv'}")
 
 
 if __name__ == "__main__":
