@@ -37,10 +37,13 @@ Uso:
 import pandas as pd
 
 from dipres.config import DIRS
+from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
 TC = DIRS.get("externo", DIRS["raw"] / "externo") / "tipo_cambio" / "diario.csv"
 SECCION = {"CLP": "PESOS", "UF": "PESOS", "USD": "DOLARES", "EUR": "DOLARES"}
+TOL_CRUCE_PCT = 20      # |subt. 14 − bonos| / subt. 14 sobre esto: aviso. Lo
+                        # esperado está entre 0% y 15% (créditos, premio)
 
 
 def promedio(tc: pd.DataFrame, indicador: str, desde: str, hasta: str) -> float:
@@ -155,6 +158,18 @@ def main() -> None:
                   f"{incompleta}")
 
     c.to_csv(REP / "deuda_cruce_subt14.csv", index=False, encoding="utf-8-sig")
+    reg = Registro("cruce_bonos", salida_dir=REP, eco=False)
+    for r in c.itertuples():
+        msg = (f"{r.seccion} {r.ventana}: subt. 14 − bonos = "
+               f"{r.dif_pct:+.1f}%")
+        if pd.isna(r.dif_pct):
+            reg.warn("cruce_subt14", msg + " (sin subt. 14)", anio=r.ventana,
+                     patron="ventana sin subt. 14")
+        elif abs(r.dif_pct) > TOL_CRUCE_PCT:
+            reg.warn("cruce_subt14", msg, anio=r.ventana,
+                     patron=f"diferencia mayor a {TOL_CRUCE_PCT}%")
+        else:
+            reg.ok("cruce_subt14", msg, anio=r.ventana)
 
     # Todas las monedas en US$, para el margen de endeudamiento (18d)
     u = e.drop(columns=["seccion", "emitido_seccion", "ventana"]).copy()
@@ -165,6 +180,7 @@ def main() -> None:
                                      index=False, encoding="utf-8-sig")
     print(f"\n  Salida: {REP / 'deuda_cruce_subt14.csv'}")
     print(f"          {REP / 'deuda_emisiones_usd.csv'}")
+    reg.emitir()
 
 
 if __name__ == "__main__":

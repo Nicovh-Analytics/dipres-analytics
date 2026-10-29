@@ -63,6 +63,7 @@ import pandas as pd
 import pdfplumber
 
 from dipres.config import DIRS
+from dipres.hallazgos import Registro
 
 DIR_DEUDA = DIRS.get("externo", DIRS["raw"] / "externo") / "deuda"
 REP = DIRS["reportes"]
@@ -342,8 +343,11 @@ def main() -> None:
         if m:
             rutas.append((pd.Period(year=int(m[2]), month=MESES[m[1]],
                                     freq="M"), r))
+    reg = Registro("bonos_deuda", salida_dir=REP, eco=False)
     if not rutas:
         print(f"  · no hay PDF en {DIR_DEUDA} (dic_AAAA.pdf)")
+        reg.error("entradas", f"no hay reportes de deuda en {DIR_DEUDA}")
+        reg.emitir()
         return
     partes_b, partes_t, partes_p = [], [], []
     for corte, r in sorted(rutas):
@@ -360,16 +364,25 @@ def main() -> None:
     for r in v.itertuples():
         if pd.isna(r.total_colocado):
             print(f"    ⚠ {r.corte} {r.grupo:11}: sin fila de total")
+            reg.warn("totales", f"{r.corte} {r.grupo}: sin fila de total",
+                     anio=r.corte, patron="tabla sin fila de total")
         else:
             marca = "✓" if r.cuadra else "❌"
             print(f"    {marca} {r.corte} {r.grupo:11}: colocado {r.colocado:,.1f} "
                   f"vs {r.total_colocado:,.1f} · circulante {r.circulante:,.1f} "
                   f"vs {r.total_circulante:,.1f}")
+            (reg.ok if r.cuadra else reg.error)(
+                "totales", f"{r.corte} {r.grupo}: Σ series vs fila de total "
+                f"(colocado {r.dif_colocado:+,.1f}, circulante "
+                f"{r.dif_circulante:+,.1f})", anio=r.corte,
+                patron="Σ series ≠ total de la tabla")
 
     malas = tablas_no_acumuladas(bonos)
     for c, g in sorted(malas):
         print(f"    ⚠ {c} {g:11}: monto colocado no acumulado (hay series con "
               "más circulante que colocado); no se usa como base")
+        reg.warn("colocado_no_acumulado", f"{c} {g}: no se usa como base",
+                 anio=c, patron="monto colocado no acumulado")
 
     e = emisiones(bonos)
     resumen = (e.groupby(["periodo", "moneda"]).emitido.sum()
@@ -381,6 +394,12 @@ def main() -> None:
         print("\n  Series a revisar")
         print(raros[["periodo", "serie", "emision", "colocado_anterior",
                      "colocado", "estado"]].to_string(index=False))
+    for r in raros.itertuples():
+        # "ausente en la base": serie con fecha nominal anterior a su primera
+        # colocación (BTP0450221, CALIDAD_FUENTE §13); "colocado baja": raro
+        (reg.info if r.estado == "ausente en la base" else reg.warn)(
+            "series", f"{r.periodo} {r.serie}: {r.estado}", anio=r.periodo,
+            patron=r.estado)
 
     pre, rev = prepagos_vigentes(pd.concat(partes_p, ignore_index=True))
     print("\n  Prepagos por año (millones de US$, reporte más reciente)")
@@ -389,6 +408,9 @@ def main() -> None:
     for r in rev.itertuples():
         print(f"    ⚠ {r.anio}: revisado entre ediciones ({r.min:,.1f} a "
               f"{r.max:,.1f})")
+        reg.info("prepagos", f"{r.anio}: revisado entre ediciones "
+                 f"({r.min:,.1f} a {r.max:,.1f})", anio=int(r.anio),
+                 patron="prepago revisado entre ediciones")
 
     pre.to_csv(REP / "deuda_prepagos.csv", index=False, encoding="utf-8-sig")
     bonos.to_csv(REP / "deuda_bonos.csv", index=False, encoding="utf-8-sig")
@@ -396,6 +418,7 @@ def main() -> None:
     print(f"\n  Salida: {REP / 'deuda_bonos.csv'}")
     print(f"          {REP / 'deuda_emisiones.csv'}")
     print(f"          {REP / 'deuda_prepagos.csv'}")
+    reg.emitir()
 
 
 if __name__ == "__main__":

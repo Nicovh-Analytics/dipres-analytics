@@ -8,6 +8,11 @@ registra un hallazgo con estructura. Al final se emiten:
 
   - reporte_<nombre>.md  → legible, agrupado por severidad
   - hallazgos_<nombre>.csv → tabular, para cruzar entre corridas
+  - _controles/<script>__<nombre>.json → resumen que lee run.py para
+    informar al final de la corrida qué scripts tuvieron errores
+
+El script se identifica por la variable de entorno DIPRES_SCRIPT, que
+pone run.py; si se corre a mano, por el nombre del archivo ejecutado.
 
 Uso:
     from dipres.hallazgos import Registro
@@ -17,8 +22,15 @@ Uso:
     reg.warn("encoding", "cp1252 detectado", nivel="ley", archivos=40)
     reg.error("duplicados", "46 filas duplicadas", nivel="programa", n=46)
     reg.emitir()
+
+Eco a consola: por defecto, error y warn se imprimen al registrarse. Un
+script que ya imprime sus propios mensajes usa Registro(..., eco=False), o
+eco=False en una llamada puntual, para no duplicarlos.
 """
 
+import json
+import os
+import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -30,8 +42,10 @@ ICONOS = {"error": "❌", "warn": "⚠", "info": "ℹ", "ok": "✓"}
 
 
 class Registro:
-    def __init__(self, nombre: str, salida_dir: Path | str = ".", versionar: bool = False):
+    def __init__(self, nombre: str, salida_dir: Path | str = ".",
+                 versionar: bool = False, eco: bool = True):
         self.nombre = nombre
+        self.eco = eco
         if versionar:
             self.nombre = f"{nombre}_{datetime.now():%Y%m%d_%H%M}"
         self.salida_dir = Path(salida_dir)
@@ -41,6 +55,7 @@ class Registro:
 
     # ── Registro ──────────────────────────────────────
     def _add(self, sev, check, mensaje, **meta):
+        eco = meta.pop("eco", self.eco)
         self.items.append({
             "severidad": sev,
             "check": check,
@@ -48,7 +63,7 @@ class Registro:
             **meta,
         })
         # Eco a consola solo para error y warn; ok e info quedan en el archivo
-        if sev in ("error", "warn"):
+        if eco and sev in ("error", "warn"):
             ctx = meta.get("nivel") or meta.get("archivo") or ""
             ctx = f"[{ctx}] " if ctx else ""
             print(f"  {ICONOS[sev]} {ctx}{mensaje}")
@@ -92,6 +107,7 @@ class Registro:
     def emitir(self, verbose_ok: bool = False):
         self._emitir_md(verbose_ok)
         self._emitir_csv()
+        self._emitir_resumen()
         r = self.resumen()
         print(f"\n  {ICONOS['ok']} {r.get('ok',0)}  "
               f"{ICONOS['info']} {r.get('info',0)}  "
@@ -141,10 +157,7 @@ class Registro:
                     L.append("| Patrón | Casos | Ejemplos |")
                     L.append("|---|---:|---|")
                     for pat, ocur in sorted(patrones.items(), key=lambda kv: -len(kv[1])):
-                        ejs = ", ".join(
-                            str(o.get("archivo", o.get("nivel", "")))
-                            for o in ocur[:3]
-                        )
+                        ejs = ", ".join(_ejemplo(o) for o in ocur[:3])
                         extra = f" (+{len(ocur)-3})" if len(ocur) > 3 else ""
                         L.append(f"| {pat} | {len(ocur)} | {ejs}{extra} |")
                 else:
@@ -171,3 +184,27 @@ class Registro:
     def _emitir_csv(self):
         ruta = self.salida_dir / f"hallazgos_{self.nombre}.csv"
         pd.DataFrame(self.items).to_csv(ruta, index=False, encoding="utf-8-sig")
+
+    def _emitir_resumen(self):
+        """Resumen para run.py: conteos y el detalle de errores y avisos."""
+        script = os.environ.get("DIPRES_SCRIPT") or Path(sys.argv[0]).stem
+        carpeta = self.salida_dir / "_controles"
+        carpeta.mkdir(parents=True, exist_ok=True)
+        detalle = lambda sev: [f"[{i['check']}] {i['mensaje']}"
+                               for i in self.items if i["severidad"] == sev]
+        datos = {"script": script, "registro": self.nombre,
+                 "fecha": f"{datetime.now():%Y-%m-%d %H:%M}",
+                 "resumen": self.resumen(),
+                 "errores": detalle("error")[:50],
+                 "avisos": detalle("warn")[:50]}
+        (carpeta / f"{script}__{self.nombre}.json").write_text(
+            json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _ejemplo(item: dict) -> str:
+    """Contexto corto de un hallazgo para la columna de ejemplos."""
+    for k in ("archivo", "nivel", "anio"):
+        if item.get(k) not in (None, ""):
+            return str(item[k])
+    m = str(item.get("mensaje", ""))
+    return m if len(m) <= 40 else m[:37] + "…"

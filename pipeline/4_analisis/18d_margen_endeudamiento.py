@@ -52,6 +52,7 @@ from pathlib import Path
 import pandas as pd
 
 from dipres.config import DIRS
+from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
 MM = 1e3                # miles de US$ → millones de US$
@@ -158,7 +159,20 @@ def main() -> None:
 
     d.round(2).to_csv(REP / "margen_endeudamiento.csv", index=False,
                       encoding="utf-8-sig")
+    # Un "SOBRE" es un aviso, no un error de datos: es una estimación y el
+    # cómputo oficial se pidió por Ley 20.285
+    reg = Registro("margen_endeudamiento", salida_dir=REP, eco=False)
+    for r in d.itertuples():
+        msg = f"{r.ventana}: {r.lectura} (uso {r.uso_base_pct:.0f}% del tope)"
+        if r.lectura == "SOBRE":
+            reg.warn("margen", msg, anio=r.ventana,
+                     patron="estimación sobre el tope ampliado")
+        elif r.lectura in ("INDETERMINADO", "sin tope"):
+            reg.info("margen", msg, anio=r.ventana, patron=r.lectura)
+        else:
+            reg.ok("margen", msg, anio=r.ventana)
     print(f"\n  Salida: {REP / 'margen_endeudamiento.csv'}")
+    reg.emitir()
 
 
 if __name__ == "__main__":

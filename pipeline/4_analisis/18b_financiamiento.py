@@ -43,6 +43,7 @@ import pandas as pd
 
 from dipres.config import DIRS
 from dipres.dominio import tipo_cambio
+from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
 PROGRAMA = DIRS["clean"] / "ejecucion_programa_consolidado.parquet"
@@ -55,6 +56,7 @@ OTROS_ACT = 99          # otros activos financieros
 
 TOL_CAMBIO = 0.05       # operaciones de cambio netas: aviso si superan 5%
                         # del total de fuentes del año
+TOL_SUBT11 = 0.05       # billones: subt. 11 por ítem vs ingresos_detalle
 
 
 def a_billones(df: pd.DataFrame, col: str) -> pd.Series:
@@ -119,7 +121,7 @@ def fuentes(ing: pd.DataFrame, act: pd.DataFrame,
     return f.reset_index()
 
 
-def informar(f: pd.DataFrame) -> None:
+def informar(f: pd.DataFrame, reg: Registro) -> None:
     pct = lambda c: f[c] / f.total_fuentes * 100
     t = pd.DataFrame({
         "año": f.anio,
@@ -137,13 +139,23 @@ def informar(f: pd.DataFrame) -> None:
     cambio = (f.operaciones_cambio / f.total_fuentes).abs()
     for a, c, v in zip(f.anio, cambio, f.operaciones_cambio):
         marca = "⚠" if c > TOL_CAMBIO else "✓"
-        print(f"    {marca} {a}: operaciones de cambio netas {v:+.2f} billones "
-              f"({c * 100:.1f}% de las fuentes)")
+        msg = (f"{a}: operaciones de cambio netas {v:+.2f} billones "
+               f"({c * 100:.1f}% de las fuentes)")
+        print(f"    {marca} {msg}")
+        (reg.warn if c > TOL_CAMBIO else reg.ok)(
+            "operaciones_cambio", msg, anio=int(a),
+            patron="operaciones de cambio no se anulan entre monedas")
     dif = (f.subt11_items - f.subt11_detalle).abs()
-    print(f"    subt. 11 por ítem (programa) vs ingresos_detalle (nacional): "
-          f"diferencia máxima {dif.max():.2f} billones")
-    print("    (programa no consolida; el subt. 11 no tiene transferencias "
+    marca = "✓" if dif.max() <= TOL_SUBT11 else "❌"
+    print(f"    {marca} subt. 11 por ítem (programa) vs ingresos_detalle "
+          f"(nacional): diferencia máxima {dif.max():.2f} billones")
+    print("      (programa no consolida; el subt. 11 no tiene transferencias "
           "internas, así que debería cuadrar)")
+    for a, d in zip(f.anio, dif):
+        (reg.ok if d <= TOL_SUBT11 else reg.error)(
+            "subt11_por_item", f"{a}: subt. 11 por ítem − nacional = "
+            f"{d:.2f} billones", anio=int(a),
+            patron="subt. 11 por ítem no cuadra con el nacional")
 
 
 def main() -> None:
@@ -154,7 +166,8 @@ def main() -> None:
     tope = pd.read_csv(REP / "tope_endeudamiento.csv", encoding="utf-8-sig")
     act = cargar_activos()
     f = fuentes(ing, act, tope)
-    informar(f)
+    reg = Registro("financiamiento", salida_dir=REP, eco=False)
+    informar(f, reg)
 
     act.to_csv(REP / "financiamiento_activos.csv", index=False,
                encoding="utf-8-sig")
@@ -162,6 +175,7 @@ def main() -> None:
              encoding="utf-8-sig")
     print(f"\n  Salida: {REP / 'financiamiento_fuentes.csv'}")
     print(f"          {REP / 'financiamiento_activos.csv'}")
+    reg.emitir()
 
 
 if __name__ == "__main__":
