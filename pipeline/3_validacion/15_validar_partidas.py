@@ -18,7 +18,12 @@ Tres controles por año y moneda:
      Partidas, extraída por el script 14). Detecta inconsistencias
      internas de la ley, como 2020 (préstamos).
 
-Salida: docs/partidas_ley_dipres.csv (lo extraído, auditable).
+Salidas (solo en una corrida completa; con --anio se imprime pero no se
+guarda, para no sobrescribir los demás años):
+  docs/partidas_ley_dipres.csv               lo extraído de la ley, auditable
+  reports/validacion_partidas_ley.csv        ley vs dataset por año, moneda,
+                                             partida y subtítulo (lo lee el
+                                             21 para el alcance de HALLAZGOS)
 
 Uso:
     python pipeline/3_validacion/15_validar_partidas.py
@@ -40,6 +45,7 @@ from dipres.utils import leer_csv_robusto
 DIR_TEXTO = DIRS.get("normativa", DIRS["base"] / "normativa") / "texto"
 ART1 = DIRS["docs"] / "art1_ley_presupuestos_dipres.csv"
 SALIDA = DIRS["docs"] / "partidas_ley_dipres.csv"
+SALIDA_VALIDACION = DIRS["reportes"] / "validacion_partidas_ley.csv"
 ANIOS = range(2017, 2027)
 COLS = ["bruto", "transferencias", "total"]
 
@@ -464,7 +470,7 @@ if __name__ == "__main__":
     print("  LEY_INICIAL vs LEY DE PRESUPUESTOS — por partida")
     print("=" * 78)
 
-    todas, resumen = [], []
+    todas, resumen, comparaciones = [], [], []
     for anio in anios:
         print(f"\n{'─' * 78}\n  {anio}\n")
         ley, problemas = leer_cuadros(anio)
@@ -504,6 +510,10 @@ if __name__ == "__main__":
 
         c = comparar_dataset(ley, obs, anio, reg)
         n_ok = int((c.delta.abs() <= TOLERANCIAS["monto"]).sum())
+        comparaciones.append(
+            c.rename(columns={"total": "ley", "ley_inicial": "dataset"})
+             .assign(anio=anio,
+                     cuadra=lambda x: x.delta.abs() <= TOLERANCIAS["monto"]))
         resumen.append((anio, len(ok), n_ok, len(c)))
         print(f"  ley vs dataset: {n_ok}/{len(c)} partida·subtítulo cuadran")
         if not art1.empty:
@@ -514,8 +524,17 @@ if __name__ == "__main__":
         for anio, nc, n_ok, n in resumen:
             print(f"  {anio}: {nc:>2} cuadros · {n_ok:>4}/{n:<4} partida·subtítulo")
         print(f"  Total: {sum(r[2] for r in resumen)}/{sum(r[3] for r in resumen)}")
-    if todas:
+    if args.anio:
+        print(f"\n  Corrida de un solo año: no se guardan {SALIDA.name} ni "
+              f"{SALIDA_VALIDACION.name}")
+    elif todas:
         SALIDA.parent.mkdir(parents=True, exist_ok=True)
         pd.concat(todas).to_csv(SALIDA, index=False, encoding="utf-8")
+        cols = ["anio", "moneda", "partida", "subtitulo", "ley", "dataset",
+                "delta", "cuadra"]
+        (pd.concat(comparaciones)[cols]
+           .sort_values(["anio", "moneda", "partida", "subtitulo"])
+           .to_csv(SALIDA_VALIDACION, index=False, encoding="utf-8-sig"))
         print(f"\n  Extraído: {SALIDA}")
+        print(f"  Validación: {SALIDA_VALIDACION}")
     reg.emitir()

@@ -47,6 +47,7 @@ import pandas as pd
 
 from dipres.config import DIRS
 from dipres.dominio import MES_A_NUM, NUM_A_MES, TC_OBSERVADO, tipo_cambio
+from dipres.hallazgos import Registro
 from dipres.utils import leer_csv_robusto
 
 ANIO_EN_CURSO = 2026
@@ -242,15 +243,35 @@ if __name__ == "__main__":
               f"{r['uso_bruto_pct']:>10.0f}%{r['uso_neto_pct']:>9.0f}%  "
               f"{r['lectura']}{corte}")
 
+    reg = Registro("tope_endeudamiento", salida_dir=DIRS["reportes"], eco=False)
+
     # Control: las amortizaciones no pueden superar el subtítulo 34
     malo = d[d["amortizacion"] > d["servicio_deuda"] * 1.001]
     if not malo.empty:
         print(f"\n  ⚠ amortización > subtítulo 34 en {malo['Año'].tolist()}: "
               f"revisar el filtro de ítems/asignaciones")
+    for _, r in d.iterrows():
+        a = int(r["Año"])
+        (reg.error if a in set(malo["Año"]) else reg.ok)(
+            "amortizaciones", f"{a}: amortizaciones 34.01-34.02 ≤ subt. 34",
+            anio=a, patron="amortización > subtítulo 34 (filtro de ítems)")
 
+    # Control: el tope se leyó del texto de cada ley. Sin tope, el año no se
+    # evalúa (ni aquí ni en el 18d): es un error de datos, no un hallazgo
     sin = d[d["estado_texto"] != "ok"]
     for _, r in sin.iterrows():
         print(f"\n  ⚠ {int(r['Año'])}: tope no leído — {r['estado_texto']}")
+    for _, r in d.iterrows():
+        a = int(r["Año"])
+        if r["estado_texto"] != "ok":
+            reg.error("tope_ley", f"{a}: tope no leído — {r['estado_texto']}",
+                      anio=a, patron="tope del art. 3 no leído")
+        else:
+            reg.ok("tope_ley", f"{a}: tope leído del art. 3", anio=a)
+            if pd.isna(r.get("tope_reconocimiento")):
+                reg.info("tope_ley", f"{a}: sin autorización de bonos de "
+                         f"reconocimiento en el art. 3", anio=a,
+                         patron="sin inciso de bonos de reconocimiento")
 
     print(f"\n  Tope  = inciso 1 + inciso 2 (+ ajustes por ley en TOPE_AJUSTES)")
     print(f"  Bruto = subt. 14 ejecutado → cota superior del endeudamiento computable")
@@ -263,3 +284,4 @@ if __name__ == "__main__":
               f"{'cabe' if cabe else 'NO cabe'}")
 
     d.round(2).to_csv(DIRS["reportes"] / "tope_endeudamiento.csv", index=False)
+    reg.emitir()

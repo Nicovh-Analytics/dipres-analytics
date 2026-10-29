@@ -14,9 +14,10 @@ Cada hallazgo sigue la estructura de un informe de auditoría:
 Si falta el CSV de un bloque, el hallazgo queda como "pendiente: correr X"
 en vez de fallar.
 
-Bloques: ingresos (10, 18), estructura institucional (20), calidad de la
-fuente (05, 20, _versiones), modificaciones, ejecución y endeudamiento
-(16, 17, 11b), validación externa contra Contraloría (15b).
+Bloques: ingresos (10, 18, 18b), estructura institucional (20), calidad de
+la fuente (05, 20, _versiones), modificaciones, ejecución y endeudamiento
+(16, 17, 18d), validación externa (15b contra Contraloría, 18c contra los
+reportes de deuda) y análisis descriptivo (18b), que no son hallazgos.
 
 Uso:
     python pipeline/5_informe/21_sintesis.py
@@ -28,6 +29,7 @@ from datetime import date
 import pandas as pd
 
 from dipres.config import DIRS
+from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
 SALIDA = DIRS["docs"] / "HALLAZGOS.md"
@@ -81,12 +83,56 @@ def pendiente(codigo: str, titulo: str, falta: str) -> Hallazgo:
 
 
 def leer(nombre: str) -> pd.DataFrame:
-    return pd.read_csv(REP / nombre)
+    # utf-8-sig lee igual los CSV con y sin BOM (los del 11c, 18b-18d lo traen)
+    return pd.read_csv(REP / nombre, encoding="utf-8-sig")
 
 
 # =====================================================
 # Bloque: ingresos
 # =====================================================
+def error_tipico() -> str:
+    """Sesgo vs tamaño del error con perímetro FMI (ingresos_agregados.csv)."""
+    try:
+        a = leer("ingresos_agregados.csv")
+    except FileNotFoundError:
+        return ""
+    g = a[(a.moneda == "PESOS") & (a.agregado == "ingreso_gfs")]
+    if g.empty:
+        return ""
+    e = g.set_index("anio").error_vs_inicial * 100
+    mx = e.abs().idxmax()
+    return (f" El sesgo desaparece, pero el error no: con el perímetro del FMI "
+            f"el error típico (promedio sin signo) es de "
+            f"{num(e.abs().mean(), 1)}%, con un máximo de {pct(e[mx], 0)} en "
+            f"{int(mx)}.")
+
+
+def operaciones_cambio(con: pd.DataFrame) -> str:
+    """
+    Parte del error del subt. 11 en pesos que son operaciones de cambio
+    (ítem 03, financiamiento_activos.csv del 18b). Su ley inicial no está
+    desagregada por ítem: se usa lo ejecutado, que es casi todo el desvío.
+    """
+    try:
+        act = leer("financiamiento_activos.csv")
+        det = leer("ingresos_detalle.csv")
+    except FileNotFoundError:
+        return ""
+    anios = det[det.moneda == "PESOS"].anio.unique()
+    op = act[(act.moneda == "PESOS") & (act.subtitulo == 11) & (act.item == 3)
+             & act.anio.isin(anios)].ejecutado.sum()
+    s11 = con[con.subtitulo == 11]
+    if s11.empty or not op:
+        return ""
+    err11, total = float(s11.error.iloc[0]), float(con.error.sum())
+    sin = (err11 - op) / total * 100
+    return (f" Dentro de Venta de Activos Financieros, las operaciones de "
+            f"cambio (ítem 03) suman {num(op / 1e9, 1)} billones de pesos en "
+            f"el período, el {num(op / err11 * 100, 0)}% de su desvío: son "
+            f"dólares que el Tesoro convierte a pesos, que en moneda nacional "
+            f"se registran como ingreso y en dólares como ingreso negativo. "
+            f"Sin ellas, el aporte del subtítulo 11 al error sería de "
+            f"{num(sin, 0)}%.")
 def bloque_ingresos() -> list[Hallazgo]:
     try:
         ps = leer("ingresos_prueba_signo.csv")
@@ -115,7 +161,7 @@ def bloque_ingresos() -> list[Hallazgo]:
         f"baja a {pct(gfs.error_medio_pct)} y el sesgo deja de ser "
         f"significativo (subestima {int(gfs.subestima)} años y sobreestima "
         f"{int(gfs.sobreestima)}, {pval(gfs.p_valor)}). Solo con las líneas que son pronóstico: "
-        f"{pct(pro.error_medio_pct)}, {pval(pro.p_valor)}.",
+        f"{pct(pro.error_medio_pct)}, {pval(pro.p_valor)}.{error_tipico()}",
         "Ley inicial contra ejecución acumulada a diciembre, pesos, años "
         f"completos (n = {n}). Prueba de signos binomial exacta, bilateral. "
         "Perímetro de ingreso según el Manual de Estadísticas de Finanzas "
@@ -123,7 +169,11 @@ def bloque_ingresos() -> list[Hallazgo]:
         "18_ingresos.py → ingresos_prueba_signo.csv, ingresos_agregados.csv",
         "Solo moneda nacional. La correspondencia con las categorías del manual "
         "del FMI está verificada para los subtítulos principales; la de "
-        "algunos subtítulos menores es inferida (dominio.CONCORDANCIA_GFS)."))
+        "algunos subtítulos menores es inferida (dominio.CONCORDANCIA_GFS). "
+        "La suma de subtítulos en pesos incluye además las operaciones de "
+        "cambio (subt. 11, ítem 03): dólares que el Tesoro convierte a pesos y "
+        "que en moneda nacional se registran como ingreso (ver ING-2 y "
+        "CALIDAD_FUENTE.md, §12)."))
 
     # H2 — autorizaciones
     nat = con.groupby("naturaleza").aporte_al_error_pct.sum()
@@ -140,14 +190,16 @@ def bloque_ingresos() -> list[Hallazgo]:
         f"ley son autorizaciones (permisos para endeudarse o vender activos), no "
         f"estimaciones: {det_aut}. Las líneas de pronóstico aportan el "
         f"{num(nat.get('PRONOSTICO', 0), 0)}% y las discrecionales el "
-        f"{num(nat.get('DISCRECIONAL', 0), 0)}%.",
+        f"{num(nat.get('DISCRECIONAL', 0), 0)}%.{operaciones_cambio(con)}",
         "Aporte de cada subtítulo a la suma de (ejecutado − inicial) de todos "
         "los años, sin saldo de caja ni aporte fiscal.",
         "18_ingresos.py → ingresos_contribucion.csv",
         "La naturaleza (pronóstico, autorización, discrecional) es una "
-        "clasificación del proyecto (dominio.NATURALEZA_INGRESO). El 11 "
-        "confirma empíricamente que venta de activos financieros se comporta "
-        "como tope; el endeudamiento se contrasta con el art. 3 en el 11b.",
+        "clasificación del proyecto (dominio.NATURALEZA_INGRESO). La ley "
+        "inicial no se publica por ítem, así que la parte de las operaciones "
+        "de cambio se mide con lo ejecutado (18b_financiamiento.py → "
+        "financiamiento_activos.csv). El endeudamiento se contrasta con el "
+        "art. 3 en DEU-1.",
         solidez="media"))
 
     # H3 — impuestos
@@ -608,39 +660,172 @@ def bloque_ejecucion() -> list[Hallazgo]:
                 "identifican esa base legal.",
                 solidez="media"))
 
-    # DEU-1 — tope de endeudamiento
+    # DEU-1 — margen de endeudamiento (estimación con detalle de bonos)
     try:
-        te = leer("tope_endeudamiento.csv")
-        te = te[te.MesNum == 12]
-        cuenta = te.lectura.value_counts()
-        cabe = te[te.lectura.str.contains("CABE", na=False)]
-        sobre = te[te.lectura == "SOBRE"]
-        out.append(Hallazgo(
-            "DEU-1", "El endeudamiento se mantiene dentro de las autorizaciones "
-                     "legales verificables",
-            f"De {len(te)} años: {cuenta.get('DENTRO', 0)} dentro del tope del "
-            f"art. 3 aun sin descontar amortizaciones, "
-            f"{cuenta.get('INDETERMINADO', 0)} indeterminados con estos datos"
-            + (f", {len(cabe)} ({', '.join(str(int(a)) for a in cabe.Año)}) "
-               f"sobre el art. 3 pero dentro de la autorización adicional de "
-               f"la Ley 21.288 (Fondo COVID)" if len(cabe) else "")
-            + (f" y {len(sobre)} ({', '.join(str(int(a)) for a in sobre.Año)}) "
-               f"con excesos sin ley adicional identificada (uso neto "
-               + ", ".join(f"{num(r.uso_neto_pct, 0)}%" for r in sobre.itertuples())
-               + ")" if len(sobre) else "") + ".",
-            "Tope = incisos 1 y 2 del art. 3 de cada ley (más la Ley 21.288 en "
-            "2020-2022). Endeudamiento del Tesoro acotado entre bruto (subt. "
-            "14) y neto de amortizaciones (34.01-34.02), en US$ al observado.",
-            "11b_tope_endeudamiento.py → tope_endeudamiento.csv",
-            "El cómputo legal requiere el detalle de cada emisión; los excesos "
-            "pequeños pueden deberse a la conversión cambiaria o a deuda de "
-            "corto plazo no registrada como amortización.",
-            solidez="media"))
+        out.append(hallazgo_deu1())
     except FileNotFoundError:
-        out.append(pendiente("DEU-1", "Tope de endeudamiento",
-                             "correr 11b_tope_endeudamiento.py"))
+        out.append(pendiente("DEU-1", "Margen de endeudamiento",
+                             "correr 11b, 11c, 18c y 18d"))
     return out
 
+
+
+MARGEN_DEU = 2.0   # % sobre el tope ampliado que cae dentro del error de la
+                   # estimación (tipo de cambio promedio, créditos acotados)
+
+
+def _anios(r) -> str:
+    return f"{r.ventana} ({num(r.uso_base_pct, 0)}%)"
+
+
+def hallazgo_deu1() -> Hallazgo:
+    m = leer("margen_endeudamiento.csv")
+    dentro = m[m.lectura == "DENTRO"]
+    especial = m[m.lectura.str.contains("CABE", na=False)]
+    limite = m[(m.lectura == "INDETERMINADO")]
+    sobre = m[m.lectura == "SOBRE"].copy()
+    sobre["exceso_pct"] = (sobre.base / sobre.tope_ampliado - 1) * 100
+    menor = sobre[sobre.exceso_pct <= MARGEN_DEU]
+    mayor = sobre[sobre.exceso_pct > MARGEN_DEU]
+
+    partes = []
+    if len(dentro):
+        partes.append("dentro del tope aun con la cota alta: "
+                      + ", ".join(_anios(r) for r in dentro.itertuples()))
+    if len(especial):
+        partes.append("dentro con las autorizaciones de leyes especiales "
+                      "(Ley 21.225 en 2020 y bolsa de la Ley 21.288 para "
+                      "2020-2022): " + ", ".join(_anios(r)
+                                                 for r in especial.itertuples()))
+    if len(limite):
+        partes.append("en el límite (la base o la cota alta superan el tope, "
+                      "pero no el tope ampliado con la autorización para bonos "
+                      "de reconocimiento): "
+                      + ", ".join(_anios(r) for r in limite.itertuples()))
+    for r in menor.itertuples():
+        partes.append(f"{r.ventana} supera el tope ampliado por "
+                      f"{num(r.base - r.tope_ampliado, 0)} millones de US$ "
+                      f"({pct(r.exceso_pct, 1)}), menos que el margen de error "
+                      f"de la estimación")
+    for r in mayor.itertuples():
+        partes.append(f"{r.ventana} supera el tope ampliado por "
+                      f"{num(r.base - r.tope_ampliado, 0)} millones de US$ "
+                      f"({pct(r.exceso_pct, 1)}), sin autorización identificada")
+    titulo = ("El endeudamiento estimado cabe en las autorizaciones legales, "
+              "con varios años en el límite" if mayor.empty else
+              "El endeudamiento estimado excede las autorizaciones en "
+              + ", ".join(mayor.ventana))
+    # Ventanas que la versión anterior (11b) marcaba SOBRE sin ley que lo cubra
+    antes = m[m.lectura_11b.fillna("").map(
+        lambda t: "SOBRE" in [x.strip() for x in t.split("/")])]
+    return Hallazgo(
+        "DEU-1", titulo,
+        "Uso estimado del margen del art. 3 (entre paréntesis, base sobre el "
+        "tope): " + "; ".join(partes) + ".",
+        "Base = bonos emitidos a valor nominal en US$ (reportes de deuda de "
+        "DIPRES) − prepagos de deuda de años anteriores − bonos emitidos y "
+        "vencidos el mismo año (inciso 4°). Cota alta = base + residuo en "
+        "dólares del cruce con el subt. 14 (créditos con organismos). Tope = "
+        "incisos 1 y 2 del art. 3 (+ Ley 21.225 en 2020); tope ampliado = tope "
+        "+ autorización aparte para bonos de reconocimiento. Conversión con el "
+        "dólar, euro y UF promedio del periodo de cada emisión.",
+        "11b_tope_endeudamiento.py, 11c_bonos_deuda.py, 18c_cruce_bonos.py, "
+        "18d_margen_endeudamiento.py → margen_endeudamiento.csv",
+        "No se puede medir con datos públicos: cuánto se usó de la autorización "
+        "para bonos de reconocimiento, la deuda emitida y vencida entre dos "
+        "reportes de deuda, ni el tipo de cambio de cada operación. 2024 y "
+        "2025 se evalúan juntos porque los reportes de 2024 no permiten "
+        "separar la emisión local. El cómputo oficial se pidió por Ley 20.285.",
+        solidez="media",
+        explicacion=(
+            f"La versión anterior de este hallazgo, que acotaba el "
+            f"endeudamiento entre el subt. 14 bruto y neto de amortizaciones, "
+            f"marcaba sobre el tope "
+            f"{', '.join(antes.ventana) if len(antes) else 'ningún año'}. "
+            f"Cambió al "
+            f"medir los bonos a valor nominal (el subt. 14 registra lo "
+            f"recibido en caja, con el premio de colocación), descontar los "
+            f"prepagos y los bonos emitidos y vencidos el mismo año, sumar la "
+            f"autorización para bonos de reconocimiento y la Ley 21.225 "
+            f"(art. quinto: US$4.000 millones para 2020)."))
+
+
+def hallazgo_val3() -> Hallazgo:
+    c = leer("deuda_cruce_subt14.csv")
+    usd = c[c.seccion == "DOLARES"]
+    pes = c[c.seccion == "PESOS"]
+    neg = pes[pes.dif_pct < 0]
+    pos = pes[pes.dif_pct >= 0]
+    return Hallazgo(
+        "VAL-3", "La emisión de bonos de los reportes de deuda cuadra con el "
+                 "endeudamiento ejecutado",
+        f"El subtítulo 14 queda sobre la emisión de bonos entre "
+        f"{pct(usd.dif_pct.min(), 1)} y {pct(usd.dif_pct.max(), 1)} en la "
+        f"sección en dólares"
+        f"{', todos los años' if (usd.dif_pct >= 0).all() else ''}, y entre "
+        f"{pct(pos.dif_pct.min(), 1)} y {pct(pos.dif_pct.max(), 1)} en la de "
+        f"pesos"
+        + (", salvo " + ", ".join(f"{r.ventana} ({pct(r.dif_pct, 1)})"
+                                  for r in neg.itertuples()) if len(neg) else "")
+        + ".",
+        "Bonos emitidos por serie según los Reportes de Deuda Bruta del "
+        "Gobierno Central (diferencia de monto colocado entre reportes), "
+        "convertidos a la moneda de cada sección (UF a pesos, euros a dólares) "
+        "con el promedio del periodo, contra el subtítulo 14 ejecutado a "
+        "diciembre.",
+        "11c_bonos_deuda.py, 18c_cruce_bonos.py → deuda_cruce_subt14.csv",
+        "El subt. 14 incluye créditos con organismos que no son bonos y "
+        "registra lo recibido en caja, no el valor nominal. Los bonos "
+        "emitidos y vencidos entre dos reportes no se ven. Los reportes de "
+        "deuda tienen inconsistencias entre ediciones, documentadas en "
+        "CALIDAD_FUENTE.md, §13; las 52 tablas leídas cuadran con su total.",
+        solidez="alta",
+        explicacion=(
+            "En dólares la diferencia positiva es la esperada por los créditos. "
+            "En pesos, hipótesis sin verificar: el bono colocado sobre la par "
+            "(tasa de mercado bajo el cupón) entrega más caja que su valor "
+            "nominal, y bajo la par menos; en 2022 las tasas superaron los "
+            "cupones de varias series. Verificarlo requiere el precio de cada "
+            "colocación (resultados de licitación de Hacienda)."))
+
+
+# =====================================================
+# Bloque: análisis descriptivo (no son hallazgos de auditoría)
+# =====================================================
+def bloque_analisis() -> list[Hallazgo]:
+    try:
+        f = leer("financiamiento_fuentes.csv")
+    except FileNotFoundError:
+        return [pendiente("FIN-1", "Fuentes de financiamiento",
+                          "correr 18b_financiamiento.py")]
+    f = f[f.anio <= 2025].set_index("anio")
+    p = f.div(f.total_fuentes, axis=0) * 100
+    dn, pv, tn = p.deuda_neta, p.paga_vencimientos, p.titulos_neto
+    ahorro = tn[tn < -0.5]
+    return [Hallazgo(
+        "FIN-1", "La deuda neta financió entre el "
+                 f"{num(dn.min(), 0)}% y el {num(dn.max(), 0)}% de cada año",
+        f"De las fuentes de financiamiento ejecutadas de cada año, los "
+        f"ingresos (perímetro FMI) aportaron entre el "
+        f"{num(p.ingresos_fmi.min(), 0)}% y el {num(p.ingresos_fmi.max(), 0)}%. "
+        f"La deuda neta (endeudamiento menos amortizaciones del año) aportó "
+        f"entre el {num(dn.min(), 0)}% ({dn.idxmin()}) y el "
+        f"{num(dn.max(), 0)}% ({dn.idxmax()}). La deuda que solo paga "
+        f"vencimientos pasó del {num(pv.iloc[0], 0)}% en {pv.index[0]} al "
+        f"{num(pv.iloc[-1], 0)}% en {pv.index[-1]}."
+        + (" En " + ", ".join(f"{a} ({pct(v, 0)})" for a, v in ahorro.items())
+           + " el año ahorró en títulos y depósitos en vez de usarlos."
+           if len(ahorro) else ""),
+        "Fuentes ejecutadas a diciembre, pesos y dólares (convertidos al "
+        "dólar observado promedio), sin aporte fiscal ni saldo inicial de "
+        "caja. Endeudamiento (subt. 14) separado con las amortizaciones del "
+        "subt. 34; títulos neteados (11.01 − 30.01); sin operaciones de "
+        "cambio (11.03).",
+        "18b_financiamiento.py → financiamiento_fuentes.csv",
+        "Describe cómo se financió cada año; no evalúa si estuvo bien. Los "
+        "retiros de los fondos soberanos no se identifican por separado en "
+        "el dato.",
+        solidez="análisis")]
 
 
 # =====================================================
@@ -656,7 +841,7 @@ def bloque_validacion() -> list[Hallazgo]:
         c = leer("validacion_cgr.csv")
     except FileNotFoundError:
         return [pendiente("VAL-1", "Validación contra Contraloría",
-                          "correr 15b_validar_vs_cgr.py")]
+                          "correr 15b_validar_vs_cgr.py"), _val3()]
     c = c[c.estado.isin(COMPARABLES)]
     nombres = c.dropna(subset=["partida"]).groupby("partida").nombre.last()
     anios = sorted(c.anio.unique())
@@ -787,7 +972,17 @@ def bloque_validacion() -> list[Hallazgo]:
         "posible neteo: Poder Judicial informa préstamos negativos en el "
         "dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a "
         "DIPRES y a la CGR con estos casos."))
+
+    out.append(_val3())
     return out
+
+
+def _val3() -> Hallazgo:
+    """VAL-3 — reportes de deuda vs subtítulo 14."""
+    try:
+        return hallazgo_val3()
+    except FileNotFoundError:
+        return pendiente("VAL-3", "Bonos vs subtítulo 14", "correr 11c y 18c")
 
 
 # =====================================================
@@ -797,25 +992,50 @@ BLOQUES = [("Ingresos: proyección y recaudación", bloque_ingresos),
            ("Modificaciones, ejecución y endeudamiento", bloque_ejecucion),
            ("Estructura institucional", bloque_estructura),
            ("Calidad de la fuente", bloque_calidad),
-           ("Validación externa", bloque_validacion)]
+           ("Validación externa", bloque_validacion),
+           ("Análisis descriptivo (no son hallazgos de auditoría)",
+            bloque_analisis)]
+
+# Diferencias conocidas entre la ley por partida y el dataset: errores del
+# texto de la ley, documentados en CALIDAD_FUENTE.md §10 (año, partida)
+DIFERENCIAS_LEY_CONOCIDAS = {(2018, 9)}
+
+
+def cuadre_ley_partidas() -> str:
+    """Frase del alcance: ley inicial vs cuadros por partida (script 15)."""
+    try:
+        v = leer("validacion_partidas_ley.csv")
+    except FileNotFoundError:
+        return "(pendiente: correr 15_validar_partidas.py)"
+    malas = v[~v.cuadra]
+    conocidas = all((a, p) in DIFERENCIAS_LEY_CONOCIDAS
+                    for a, p in zip(malas.anio, malas.partida))
+    detalle = ("" if malas.empty else
+               f" (las {len(malas)} restantes son un error del texto de la "
+               f"ley, CALIDAD_FUENTE.md §10)" if conocidas else
+               f" ({len(malas)} no cuadran: revisar validacion_partidas_ley.csv)")
+    return (f"en {num(int(v.cuadra.sum()))} de {num(len(v))} combinaciones "
+            f"partida·subtítulo{detalle}")
+
 
 ALCANCE_GENERAL = """\
 **Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno \
 Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de \
-las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas \
-y el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025).
+las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, \
+el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), \
+los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025) y los \
+tipos de cambio del Banco Central.
 
 **Seguridad razonable** para los niveles nacional y partida al cierre de cada \
-año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de \
-5.929 combinaciones partida·subtítulo (las 2 restantes son errores del texto \
-de la ley), el presupuesto por partida coincide con el de Contraloría y los \
+año: la ley inicial cuadra con los cuadros por partida de cada ley \
+{cuadre_ley}, el presupuesto por partida coincide con el de Contraloría y los \
 ingresos concilian con la cifra oficial. La ejecución por partida difiere de \
 la de Contraloría en líneas puntuales (VAL-2). Los niveles \
 capítulo y programa tienen inconsistencias de publicación documentadas en \
 [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 
 **Lo que el dataset no ve:** leyes dictadas durante el año, gastos \
-excedibles, detalle de emisiones de deuda. Por eso ningún hallazgo concluye \
+excedibles, el destino de cada operación de deuda. Por eso ningún hallazgo concluye \
 "incumple": cuando algo no se explica con los datos, se indica que requiere \
 respaldo legal."""
 
@@ -826,7 +1046,9 @@ def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
           f"> Generado por `21_sintesis.py` el {date.today():%d-%m-%Y} desde "
           f"los reportes del pipeline. No editar a mano: las cifras se "
           f"regeneran.",
-          "", "## Alcance", "", ALCANCE_GENERAL, "", "## Resumen", ""]
+          "", "## Alcance", "",
+          ALCANCE_GENERAL.format(cuadre_ley=cuadre_ley_partidas()),
+          "", "## Resumen", ""]
     ls += ["| Código | Hallazgo | Solidez |", "|---|---|---|"]
     for _, hs in bloques:
         ls += [f"| {h.codigo} | {h.titulo} | {h.solidez} |" for h in hs]
@@ -854,9 +1076,18 @@ if __name__ == "__main__":
     print("=" * 78)
     print("  SÍNTESIS DE HALLAZGOS")
     print("=" * 78)
+    # Un hallazgo pendiente (falta su CSV) queda como aviso de la corrida:
+    # el informe se generó, pero incompleto
+    reg = Registro("sintesis", salida_dir=DIRS["reportes"], eco=False)
     for titulo, hs in bloques:
         print(f"\n  {titulo}")
         for h in hs:
             marca = "…" if h.pendiente else "✓"
             print(f"   {marca} {h.codigo:<6} {h.titulo}  [{h.solidez}]")
+            if h.pendiente:
+                reg.warn("hallazgo", f"{h.codigo}: {h.condicion}",
+                         patron="hallazgo pendiente (falta su CSV)")
+            else:
+                reg.ok("hallazgo", h.codigo)
     print(f"\n  Informe: {SALIDA}")
+    reg.emitir()

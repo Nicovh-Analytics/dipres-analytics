@@ -18,6 +18,12 @@ Produce tres salidas:
 La comparación ley vs ejecución (antes/después del perímetro y prueba del
 signo) vive en 18_ingresos.py.
 
+Controles (reports/_controles/, tabla de run.py):
+  ❌ sin datos de cierre, o un año cerrado cuyo último mes no es diciembre
+  ⚠ brecha GFS vs oficial sobre TOL_BRECHA_PCT (lo esperado es el
+     perímetro extrapresupuestario, ~2-3%), o tipo de cambio faltante
+  ℹ desvío del tipo de cambio y conciliación de cada año
+
 Requiere TC_SUPUESTO y TC_OBSERVADO llenos en dominio.py.
 
 Uso:
@@ -39,6 +45,7 @@ ANIO_EN_CURSO = 2026
 REFERENCIA_OFICIAL = {2024: 67_283_221}
 
 MILES_A_MILLONES = 1_000
+TOL_BRECHA_PCT = 5      # |oficial − GFS| / oficial; sobre esto pide revisión
 
 
 # =====================================================
@@ -69,8 +76,18 @@ def en_millones(pesos: float, usd: float, tc: float) -> float:
 
 # =====================================================
 if __name__ == "__main__":
-    reg = Registro("conciliacion_gfs", salida_dir=DIRS["reportes"])
+    reg = Registro("conciliacion_gfs", salida_dir=DIRS["reportes"], eco=False)
     c = cargar_cierres()
+    if c.empty:
+        reg.error("cierres", "cruce_nacional sin datos de cierre",
+                  patron="consolidado vacío")
+        reg.emitir()
+        raise SystemExit(1)
+    for anio, m in c.groupby("Año")["MesNum"].max().items():
+        msg = f"{anio}: cierre en el mes {m}"
+        (reg.ok if m == 12 else reg.error)(
+            "cierres", msg, anio=int(anio),
+            patron="año cerrado sin diciembre")
 
     # ── (1) Tipo de cambio ───────────────────────────
     print("=" * 78)
@@ -89,7 +106,10 @@ if __name__ == "__main__":
               f"desvío medio {tc['desvio_pct'].mean():+.1f}% · "
               f"medio absoluto {tc['desvio_pct'].abs().mean():.1f}%")
         tc.round(2).to_csv(DIRS["reportes"] / "tipo_cambio_desvio.csv",
-                           index=False)
+                           index=False, encoding="utf-8-sig")
+        reg.info("tipo_cambio", f"dólar observado sobre el supuesto "
+                 f"{sobre}/{len(tc)} años, desvío medio "
+                 f"{tc['desvio_pct'].mean():+.1f}%")
 
     # ── (2) Conciliación ─────────────────────────────
     print(f"\n{'=' * 78}")
@@ -107,6 +127,8 @@ if __name__ == "__main__":
             tc_sup = tipo_cambio(anio, "supuesto")
         except KeyError as e:
             print(f"\n  {anio}: {e.args[0]} — conciliación omitida")
+            reg.warn("tipo_cambio", f"{anio}: {e.args[0]}", anio=anio,
+                     patron="tipo de cambio faltante en dominio.py")
             continue
 
         base_p, base_u = por_moneda(d)
@@ -162,10 +184,15 @@ if __name__ == "__main__":
                  f"oficial {oficial:,.0f} (brecha {brecha/oficial*100:+.2f}% "
                  f"con TC observado {tc_obs:,.1f}; TC que cierra "
                  f"{tc_cierra:,.1f})", anio=anio)
+        pct = abs(brecha / oficial * 100)
+        (reg.ok if pct <= TOL_BRECHA_PCT else reg.warn)(
+            "brecha_oficial", f"{anio}: brecha GFS vs oficial {pct:.2f}%",
+            anio=anio, patron=f"brecha mayor a {TOL_BRECHA_PCT}%")
 
     if conciliaciones:
         pd.DataFrame(conciliaciones).round(4).to_csv(
-            DIRS["reportes"] / "conciliacion_ingresos.csv", index=False)
+            DIRS["reportes"] / "conciliacion_ingresos.csv", index=False,
+            encoding="utf-8-sig")
 
     print(f"\n  (*) correspondencia inferida del MEFP, no confirmada en")
     print(f"      documentación de DIPRES — pendiente de verificar")
