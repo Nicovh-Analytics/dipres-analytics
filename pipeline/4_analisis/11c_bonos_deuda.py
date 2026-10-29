@@ -12,13 +12,27 @@ El monto colocado de una serie es acumulado: crece con cada reapertura y no
 baja con las recompras (lo que baja es el circulante). Una serie que aparece
 por primera vez en t se cuenta completa si su fecha de emisión es de t.
 
+Límite: una serie emitida y vencida entre dos reportes no aparece en
+ninguno, y su emisión se pierde. Desde 2022 hay BTP cero cupón de corto plazo
+(menos de un año) para los que esto puede pasar: entre diciembre 2023 y
+diciembre 2025, tres de ellos (3,9 billones de pesos) solo se ven gracias
+al reporte de marzo 2025. El cruce con el subtítulo 14 dimensiona lo que falte.
+
 Validación: la suma de las series de cada tabla debe cuadrar con la fila de
 total del mismo reporte (colocado y circulante). Una tabla que no cuadra se
 informa: es señal de una fila mal leída.
 
+Reportes intermedios: las ediciones de septiembre y diciembre 2024 publican
+un "monto colocado" de los bonos locales que no es el acumulado (ver
+tablas_no_acumuladas). Para no perder esos años se usa un reporte trimestral
+con colocado acumulado (marzo 2025) como base intermedia, solo en las tablas
+donde la cadena de diciembres está rota. El periodo resultante abarca más o
+menos de un año (p. ej. "2024-01 a 2025-03").
+
 Fuente: dipres.gob.cl, Reporte Trimestral de Deuda Bruta del Gobierno
 Central. Los PDF se descargan a mano y se guardan como
     raw/externo/deuda/dic_AAAA.pdf     (2016 sirve de base para 2017)
+    raw/externo/deuda/mar_AAAA.pdf     (u otro trimestre: mar, jun, sep)
 
 Montos en la unidad de cada tabla:
     BTP y globales en CLP   millones de pesos
@@ -27,8 +41,8 @@ Montos en la unidad de cada tabla:
     globales en EUR         millones de euros
 
 Salidas en DIRS["reportes"]:
-  deuda_bonos.csv       RESPALDO: cada serie en cada reporte de diciembre
-  deuda_emisiones.csv   emitido por año y serie, en la moneda de la serie
+  deuda_bonos.csv       RESPALDO: cada serie en cada reporte leído
+  deuda_emisiones.csv   emitido por periodo y serie, en la moneda de la serie
 
 Uso:
     python pipeline/4_analisis/11c_bonos_deuda.py
@@ -46,6 +60,7 @@ DIR_DEUDA = DIRS.get("externo", DIRS["raw"] / "externo") / "deuda"
 REP = DIRS["reportes"]
 TOL = 0.11              # diferencia admitida por serie (redondeo a 0,1)
 TOL_FILA = 0.051        # contra el total: cada serie redondeada aporta ±0,05
+MESES = {"mar": 3, "jun": 6, "sep": 9, "dic": 12}
 
 FECHA = r"\d{2}[-/]\d{2}[-/]\d{4}"     # 2024 usa barras
 NUM = r"\d[\d\.]*(?:,\d+)?"
@@ -116,7 +131,9 @@ def grupo_total(grupo: str, unidad: str) -> str:
     return "Global " + ("EUR" if "EURO" in u else "CLP" if "CLP" in u else "USD")
 
 
-def leer_reporte(ruta: Path, anio: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def leer_reporte(ruta: Path, corte: pd.Period) -> tuple[pd.DataFrame,
+                                                        pd.DataFrame]:
+    """Series y filas de total de un reporte; corte = mes del reporte."""
     filas, totales = [], []
     with pdfplumber.open(ruta) as pdf:
         for i, pag in enumerate(pdf.pages, 1):
@@ -127,7 +144,8 @@ def leer_reporte(ruta: Path, anio: int) -> tuple[pd.DataFrame, pd.DataFrame]:
                     nemo = re.sub(r"\s+", " ", d["nemo"]).strip()
                     mon = moneda_de(nemo)
                     filas.append({
-                        "anio": anio, "pagina": i, "nemo": nemo, "moneda": mon,
+                        "corte": str(corte), "anio": corte.year,
+                        "pagina": i, "nemo": nemo, "moneda": mon,
                         "grupo": grupo_de(mon, nemo),
                         "mercado": "local" if nemo.startswith("BT")
                                    else "internacional",
@@ -142,7 +160,7 @@ def leer_reporte(ruta: Path, anio: int) -> tuple[pd.DataFrame, pd.DataFrame]:
                 t = TOTAL.search(linea.strip())
                 if t:
                     totales.append({
-                        "anio": anio, "pagina": i,
+                        "corte": str(corte), "pagina": i,
                         "grupo": grupo_total(t["grupo"], t["unidad"]),
                         "total_colocado": numero(t["colocado"]),
                         "total_circulante": numero(t["circulante"])})
@@ -150,17 +168,17 @@ def leer_reporte(ruta: Path, anio: int) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def validar(bonos: pd.DataFrame, totales: pd.DataFrame) -> pd.DataFrame:
-    s = (bonos.groupby(["anio", "grupo"], as_index=False)
+    s = (bonos.groupby(["corte", "grupo"], as_index=False)
               [["colocado", "circulante"]].sum())
     # Puede haber más de una fila "Total BTP" en el reporte (otros cuadros);
     # se compara contra la de la misma página que las series
-    pag = bonos.groupby(["anio", "grupo"]).pagina.max().rename("pagina")
-    t = totales.merge(pag.reset_index(), on=["anio", "grupo", "pagina"])
-    v = s.merge(t, on=["anio", "grupo"], how="left")
+    pag = bonos.groupby(["corte", "grupo"]).pagina.max().rename("pagina")
+    t = totales.merge(pag.reset_index(), on=["corte", "grupo", "pagina"])
+    v = s.merge(t, on=["corte", "grupo"], how="left")
     v["dif_colocado"] = v.colocado - v.total_colocado
     v["dif_circulante"] = v.circulante - v.total_circulante
-    n = bonos.groupby(["anio", "grupo"]).size().rename("n").reset_index()
-    v = v.merge(n, on=["anio", "grupo"])
+    n = bonos.groupby(["corte", "grupo"]).size().rename("n").reset_index()
+    v = v.merge(n, on=["corte", "grupo"])
     tol = TOL_FILA * v.n + 0.01
     v["cuadra"] = (v.dif_colocado.abs() <= tol) & (v.dif_circulante.abs() <= tol)
     return v
@@ -168,13 +186,13 @@ def validar(bonos: pd.DataFrame, totales: pd.DataFrame) -> pd.DataFrame:
 
 def tablas_no_acumuladas(bonos: pd.DataFrame) -> set:
     """
-    Tablas (año, grupo) cuyo "monto colocado" no es el acumulado: alguna
+    Tablas (corte, grupo) cuyo "monto colocado" no es el acumulado: alguna
     serie tiene más circulante que colocado, lo que es imposible si el
-    colocado suma todas las reaperturas. Pasa en la edición de diciembre 2024
-    (bonos locales). Esas tablas no sirven de base para restar.
+    colocado suma todas las reaperturas. Pasa en las ediciones de septiembre
+    y diciembre 2024 (bonos locales). Esas tablas no sirven de base.
     """
     malo = bonos[bonos.circulante > bonos.colocado + TOL]
-    return set(zip(malo.anio, malo.grupo))
+    return set(zip(malo.corte, malo.grupo))
 
 
 def clave_serie(b: pd.DataFrame) -> pd.Series:
@@ -212,30 +230,47 @@ def emparejar(ahora: pd.DataFrame, antes: pd.DataFrame) -> dict:
     return par
 
 
+def cadena(cortes: list[str], grupo: str, malas: set) -> list[str]:
+    """
+    Reportes que se restan, en orden, para un grupo. Los de diciembre, salvo
+    los que no tienen colocado acumulado; los trimestrales solo si la cadena
+    de diciembres de ese grupo está rota (si no, partirían años completos).
+    """
+    rota = any((c, grupo) in malas for c in cortes if c.endswith("-12"))
+    return [c for c in cortes if (c, grupo) not in malas
+            and (c.endswith("-12") or rota)]
+
+
+def etiqueta(base: str, corte: str) -> str:
+    """'2023-12' → '2024-12' da '2024'; otro tramo da 'AAAA-MM a AAAA-MM'."""
+    b, c = pd.Period(base, "M"), pd.Period(corte, "M")
+    if b.month == 12 and c.month == 12 and c.year == b.year + 1:
+        return str(c.year)
+    return f"{b + 1} a {c}"
+
+
 def emisiones(bonos: pd.DataFrame) -> pd.DataFrame:
     """
-    Emitido por serie entre dos reportes de diciembre con colocado acumulado.
-    Si el reporte anterior no sirve (ver tablas_no_acumuladas), la resta se
-    hace contra el último que sí sirve y el periodo abarca varios años.
+    Emitido por serie entre dos reportes consecutivos de la cadena de cada
+    grupo (ver cadena). Una serie nueva se cuenta completa si su fecha de
+    emisión es posterior al reporte base.
     """
     b = bonos.copy()
     b["serie"] = clave_serie(b)
     malas = tablas_no_acumuladas(b)
-    b = (b.groupby(["anio", "serie", "grupo", "mercado", "moneda"],
+    b = (b.groupby(["corte", "anio", "serie", "grupo", "mercado", "moneda"],
                    as_index=False)
           .agg(emision=("emision", "min"), vencimiento=("vencimiento", "max"),
                colocado=("colocado", "sum"), circulante=("circulante", "sum")))
-    anios = sorted(b.anio.unique())
+    cortes = sorted(b.corte.unique())
     filas = []
-    for t in anios[1:]:
-        for g, ahora in b[b.anio == t].groupby("grupo"):
-            if (t, g) in malas:
-                continue
-            bases = [a for a in anios if a < t and (a, g) not in malas]
-            if not bases:
-                continue
-            base = max(bases)
-            antes = b[(b.anio == base) & (b.grupo == g)]
+    for g in sorted(b.grupo.unique()):
+        c_g = [c for c in cadena(cortes, g, malas)
+               if ((b.corte == c) & (b.grupo == g)).any()]
+        for base, corte in zip(c_g, c_g[1:]):
+            ahora = b[(b.corte == corte) & (b.grupo == g)]
+            antes = b[(b.corte == base) & (b.grupo == g)]
+            fin_base = pd.Period(base, "M").end_time
             par = emparejar(ahora, antes)
             col_antes = antes.set_index("serie").colocado
             for r in ahora.itertuples():
@@ -243,7 +278,7 @@ def emisiones(bonos: pd.DataFrame) -> pd.DataFrame:
                     previo = float(col_antes[par[r.serie]])
                     estado = ("reapertura" if r.colocado > previo + TOL
                               else "sin cambio")
-                elif r.emision.year > base:
+                elif r.emision > fin_base:
                     previo, estado = 0.0, "nueva"
                 else:
                     # Existía antes pero no figura en el reporte base
@@ -252,8 +287,8 @@ def emisiones(bonos: pd.DataFrame) -> pd.DataFrame:
                 if emitido < -TOL:
                     estado = "colocado baja"
                 filas.append({
-                    "anio": t,
-                    "periodo": str(t) if base == t - 1 else f"{base + 1}-{t}",
+                    "anio": r.anio, "periodo": etiqueta(base, corte),
+                    "desde": base, "hasta": corte,
                     "serie": r.serie, "mercado": r.mercado, "moneda": r.moneda,
                     "emision": r.emision.date(),
                     "vencimiento": r.vencimiento.date(),
@@ -264,19 +299,23 @@ def emisiones(bonos: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     print("=" * 78)
-    print("  BONOS DEL GOBIERNO CENTRAL (reportes de deuda bruta, diciembre)")
+    print("  BONOS DEL GOBIERNO CENTRAL (reportes de deuda bruta)")
     print("=" * 78)
-    rutas = sorted(DIR_DEUDA.glob("dic_*.pdf"))
+    rutas = []
+    for r in DIR_DEUDA.glob("*.pdf"):
+        m = re.fullmatch(r"(mar|jun|sep|dic)_(\d{4})", r.stem.lower())
+        if m:
+            rutas.append((pd.Period(year=int(m[2]), month=MESES[m[1]],
+                                    freq="M"), r))
     if not rutas:
         print(f"  · no hay PDF en {DIR_DEUDA} (dic_AAAA.pdf)")
         return
     partes_b, partes_t = [], []
-    for r in rutas:
-        anio = int(re.search(r"(\d{4})", r.stem).group(1))
-        b, t = leer_reporte(r, anio)
+    for corte, r in sorted(rutas):
+        b, t = leer_reporte(r, corte)
         partes_b.append(b)
         partes_t.append(t)
-        print(f"  {anio}: {len(b)} series leídas")
+        print(f"  {corte}: {len(b)} series leídas")
     bonos = pd.concat(partes_b, ignore_index=True)
     totales = pd.concat(partes_t, ignore_index=True)
 
@@ -284,16 +323,16 @@ def main() -> None:
     print("\n  Validación contra los totales de cada tabla")
     for r in v.itertuples():
         if pd.isna(r.total_colocado):
-            print(f"    ⚠ {r.anio} {r.grupo:11}: sin fila de total")
+            print(f"    ⚠ {r.corte} {r.grupo:11}: sin fila de total")
         else:
             marca = "✓" if r.cuadra else "❌"
-            print(f"    {marca} {r.anio} {r.grupo:11}: colocado {r.colocado:,.1f} "
+            print(f"    {marca} {r.corte} {r.grupo:11}: colocado {r.colocado:,.1f} "
                   f"vs {r.total_colocado:,.1f} · circulante {r.circulante:,.1f} "
                   f"vs {r.total_circulante:,.1f}")
 
     malas = tablas_no_acumuladas(bonos)
-    for a, g in sorted(malas):
-        print(f"    ⚠ {a} {g:11}: monto colocado no acumulado (hay series con "
+    for c, g in sorted(malas):
+        print(f"    ⚠ {c} {g:11}: monto colocado no acumulado (hay series con "
               "más circulante que colocado); no se usa como base")
 
     e = emisiones(bonos)
