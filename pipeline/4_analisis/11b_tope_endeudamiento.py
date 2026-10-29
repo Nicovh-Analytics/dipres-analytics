@@ -60,7 +60,13 @@ DIR_TEXTO = DIRS.get("normativa", DIRS["base"] / "normativa") / "texto"
 
 # Modificaciones legales al tope durante el año, en miles de US$.
 # {año: [(monto, "ley y fuente"), ...]}. Llenar solo con fuente verificada.
-TOPE_AJUSTES: dict[int, list[tuple[float, str]]] = {}
+TOPE_AJUSTES: dict[int, list[tuple[float, str]]] = {
+    # Autorización aparte del Art. 3, solo para 2020. Cuadra con el "margen
+    # de endeudamiento anual de US$13.000 millones" informado en mayo 2020:
+    # 8.000 + 500 (Art. 3) + 4.000 (esta ley) + 500 (bonos de reconocimiento)
+    2020: [(4_000_000, "Ley 21.225, art. quinto (D.O. 02-04-2020): hasta "
+                       "US$4.000 millones durante 2020")],
+}
 
 # Autorizaciones de leyes especiales con un monto para varios años (bolsa
 # común), en miles de US$. Se usan para ver si el exceso sobre el Art. 3
