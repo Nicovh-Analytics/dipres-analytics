@@ -1,8 +1,9 @@
 # Calidad de la fuente — datos de ejecución presupuestaria DIPRES
 
-> Hallazgos sobre los CSV que DIPRES publica en datos.gob.cl (ley y ejecución, 2017-01 → 2026-08).
+> Hallazgos sobre los CSV que DIPRES publica en datos.gob.cl (ley y ejecución, 2017-01 → 2026-08)
+> y, desde la sección 13, sobre los Reportes Trimestrales de Deuda Bruta del Gobierno Central (PDF).
 > Cada caso indica la evidencia, cómo lo trata el pipeline y cómo reproducirlo.
-> Última revisión: 12-10-2026.
+> Última revisión: 29-10-2026.
 
 ## Resumen
 
@@ -19,6 +20,9 @@
 | 8 | Encoding mixto (utf-8 / cp1252) | archivos 2024 | `05b` decodifica el archivo completo |
 | 9 | Ejecución sin línea de ley | 189 filas nacional · 2,2 M programa | El cruce las conserva con `origen=solo_ejecucion` |
 | 10 | La ley no cuadra consigo misma | 2018 y 2020 | `15` los separa; el dataset sigue los cuadros por partida |
+| 11 | La ejecución por partida difiere de la de Contraloría | 2017-2025, líneas puntuales | `15b` las mide y las localiza por grupo de subtítulos; consulta Ley 20.285 pendiente |
+| 12 | Las operaciones de cambio suman como ingreso en pesos y restan en dólares | Subt. 11, ítem 03, todos los años | `18b` las excluye de las fuentes de financiamiento |
+| 13 | Reportes de deuda: columnas y datos que cambian entre ediciones | Ediciones 2016-2025 | `11c` lo detecta y no usa como base las tablas afectadas |
 
 ---
 
@@ -128,8 +132,6 @@ las dos cifras es la aprobada.
 es infalible. Ante una diferencia con el dataset, primero hay que verificar
 que la ley cuadre consigo misma.
 
-| 11 | La ejecución por partida difiere de la de Contraloría | 2017-2025, líneas puntuales | `15b` las mide y las localiza por grupo de subtítulos; consulta Ley 20.285 pendiente |
-
 ## 11. Ejecución por partida vs Contraloría (IGFE)
 
 La Contraloría publica cada año el Informe de la Gestión Financiera del Estado (IGFE), con el presupuesto inicial, el actualizado y el devengado por partida. Recibe los datos de los servicios desde SIGFE, el mismo sistema de origen que DIPRES, pero los compila, consolida y valida por su cuenta. Es la única fuente externa con ese nivel de detalle. Los PDF se descargan a mano desde contraloria.cl y se guardan en `raw/externo/cgr/`.
@@ -159,3 +161,55 @@ El Tesoro 2018 en moneda extranjera también difiere: la CGR registra un presupu
 **Lo que no se puede saber desde afuera:** ninguno de los IGFE de 2017 a 2025 menciona diferencias con DIPRES ni las concilia, y la CGR no publica cifras bajo el nivel partida. El 16-10-2026 se enviaron consultas por Ley 20.285 a DIPRES y a la CGR con los casos materiales (diferencia ≥ 1% de la partida y ≥ 1.000 millones de $ o miles de US$, por moneda): Salud 2017, 2018 y 2025; RREE y Defensa (inversiones); Poder Judicial 2018-2019; Interior 2022, y Tesoro 2018 US$. Detalle en [consultas_transparencia.md](consultas_transparencia.md).
 
 **Reproducir:** `python pipeline/3_validacion/15b_validar_vs_cgr.py` (requiere los IGFE en `raw/externo/cgr/` y `pip install pdfplumber`).
+
+## 12. Operaciones de cambio en la venta de activos financieros
+
+Cuando el Tesoro convierte dólares a pesos, la ejecución lo registra en el subtítulo 11 (venta de activos financieros), ítem 03 "Operaciones de cambio", dos veces: como ingreso positivo en la sección de moneda nacional y como ingreso negativo en la de dólares. No es una venta de activos ni una fuente de fondos, sino la misma plata cambiando de moneda.
+
+| Año | Pesos (miles de millones) | Dólares (miles de millones de US$) | Dólares × dólar observado (miles de millones de $) |
+|---|---:|---:|---:|
+| 2020 | +12.650 | −16,2 | −12.830 |
+| 2021 | +21.086 | −27,9 | −21.180 |
+
+Llevadas a una sola moneda, las dos mitades se anulan: el saldo neto no supera el 0,4% de las fuentes del año en ningún año 2017-2025. La diferencia que queda viene de convertir al dólar promedio del año y no al de cada operación.
+
+**Implicancia:** sumar el subtítulo 11 dentro de una sola moneda induce a error. En pesos parece una venta de activos de hasta 21 billones en un año, y en dólares un ingreso negativo. Esto infla el error de proyección de la "suma de subtítulos" en moneda nacional (ING-1): buena parte del +316% del subtítulo 11 son dólares convertidos a pesos.
+
+**Tratamiento:** el `18b` excluye el ítem 03 de las fuentes de financiamiento e informa su saldo neto como control. Además, netea la venta de títulos y depósitos (11.01) contra su compra (30.01), porque el Tesoro también compra y vende instrumentos de liquidez durante el año.
+
+**Reproducir:** `python pipeline/4_analisis/18b_financiamiento.py`; el respaldo por ítem queda en `financiamiento_activos.csv`.
+
+## 13. Reportes de deuda bruta: datos que cambian entre ediciones
+
+DIPRES publica cada trimestre el Reporte de Deuda Bruta del Gobierno Central, en PDF, con el detalle de cada bono vigente: fechas, monto colocado (acumulado de todas las colocaciones de la serie), monto circulante, cupón y tasa. El `11c` extrae los reportes de diciembre de 2016 a 2025, más los de septiembre 2024 y marzo 2025. Las 52 tablas leídas cuadran con su fila de total. Los PDF se descargan a mano y se guardan en `raw/externo/deuda/`.
+
+**El "monto colocado" de los bonos locales no es el acumulado en septiembre y diciembre 2024.** Hay series con más circulante que colocado, lo que es imposible si el colocado suma todas las colocaciones. El BTP0450326 tiene 3.629.400 millones colocados en diciembre 2023, en marzo 2025 y en diciembre 2025, pero 755.000 en diciembre 2024. En el total de esa tabla, el colocado (35,0 billones) queda bajo el circulante (44,1 billones). Los bonos internacionales de esas mismas ediciones no tienen el problema. El `11c` descarta esas tablas como base y resta marzo 2025 contra diciembre 2023: la emisión local queda en dos tramos (enero 2024 a marzo 2025, y abril a diciembre 2025) y no por año calendario.
+
+**Las fechas y los cupones de los bonos internacionales cambian entre ediciones:**
+
+| Bono | Diferencia |
+|---|---|
+| Global 2050 en US$ | Vence el 25-07-2049 en las ediciones 2019-2020 y el 25-01-2050 desde 2021 |
+| Global 2042 en US$ (dos bonos) | En diciembre 2025, el cupón de cada uno aparece con el del otro |
+| Global en euros, emitido el 21-09-2021 | Figura como "Global 2027" en 2021, aunque vence en 2029 |
+| Global 2029 en euros, emitido en 2018 | En marzo 2025, su circulante (918) es el monto del otro Global 2029 en euros |
+| Globales en euros, 2019 | Varios cupones difieren de los de las demás ediciones |
+
+Por eso el `11c` identifica cada bono internacional por moneda, año de emisión y año de vencimiento, con tolerancia de un año, y no por su nombre ni su cupón.
+
+**Las cifras de prepagos se corrigen entre ediciones.** El anexo de prepagos trae todos los años desde 1995. El prepago de 2020 figura como 6.813,9 millones de US$ en diciembre 2024 y como 6.797,5 en diciembre 2025, y el anexo de diciembre 2024 no incluye 2023 ni 2024. El `11c` usa la cifra del reporte más reciente.
+
+**Los cuadros de intercambio cubren solo el trimestre del reporte.** El de diciembre 2024 informa emisiones para intercambio por 27 millones de US$, mientras el prepago de todo 2024 fue de 10.257,9 millones. Para el año completo se usa el anexo de prepagos.
+
+**Lo que no es un error:** la "fecha de emisión" de cada bono es la fecha nominal de la serie, no la de su primera colocación. El BTP0450221 tiene fecha de emisión 01-09-2016, pero no figura en el reporte de diciembre 2016 y aparece en 2017: se colocó en 2017, y así lo registra también el subtítulo 14 de ese año.
+
+**Límite del método:** restar el colocado entre dos reportes no ve los bonos emitidos y vencidos entre ellos. Tres BTP de corto plazo (3,9 billones de pesos), emitidos el 07-01-2025 y vencidos entre agosto y noviembre de 2025, solo se ven gracias al reporte de marzo 2025.
+
+**Validación externa:** la emisión de bonos de cada año, convertida a la moneda de cada sección del presupuesto, se compara con el endeudamiento ejecutado (subtítulo 14). La diferencia (subt. 14 − bonos) es estable:
+
+| Sección | Diferencia | Lectura |
+|---|---|---|
+| Dólares | +0,7% a +8,2%, todos los años | El subt. 14 incluye además los créditos con organismos internacionales |
+| Pesos | +5,0% a +14,8%; 2022: −10,7% | Hipótesis sin verificar: el subt. 14 registra lo recibido en caja, que supera el valor nominal cuando el bono se coloca sobre la par (tasas bajo el cupón, 2020-2021) y queda bajo él en el caso contrario (2022) |
+
+**Reproducir:** `python pipeline/4_analisis/11c_bonos_deuda.py` y `python pipeline/4_analisis/18c_cruce_bonos.py` (requieren los PDF en `raw/externo/deuda/` y los tipos de cambio de `pipeline/1_extraccion/04_tipos_cambio.py`).
