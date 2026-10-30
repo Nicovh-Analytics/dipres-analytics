@@ -46,12 +46,10 @@ Uso:
     python pipeline/4_analisis/18d_margen_endeudamiento.py
 """
 
-import importlib.util
-from pathlib import Path
-
 import pandas as pd
 
 from dipres.config import DIRS
+from dipres.dominio import TOPE_PLURIANUAL
 from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
@@ -59,13 +57,9 @@ MM = 1e3                # miles de US$ → millones de US$
 
 
 def bolsas_plurianuales() -> dict:
-    """TOPE_PLURIANUAL del 11b (única fuente), en millones de US$."""
-    ruta = Path(__file__).with_name("11b_tope_endeudamiento.py")
-    spec = importlib.util.spec_from_file_location("tope11b", ruta)
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
+    """dominio.TOPE_PLURIANUAL en millones de US$."""
     return {ley: (monto / MM, set(anios))
-            for ley, (monto, anios) in m.TOPE_PLURIANUAL.items()}
+            for ley, (monto, anios) in TOPE_PLURIANUAL.items()}
 
 
 def anios_de(ventana: str) -> list[int]:

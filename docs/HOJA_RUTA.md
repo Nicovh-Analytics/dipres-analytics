@@ -91,8 +91,10 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 1. ✓ A3: `herramientas/manifiesto.py` → `docs/manifiesto_datos.csv` (1.429 archivos,
    SHA-256) y `02 --revisar-contenido`. Falta: reanudar descargas cortadas
    (ejecución de programa 2017-02 y 2017-03 sin verificar).
-2. B1: una sola fuente de tipo de cambio; `TOPE_AJUSTES` y `TOPE_PLURIANUAL`
-   a `dominio`.
+2. ✓ B1: `TC_OBSERVADO` se calcula de la serie diaria del Banco Central
+   (`04`); los valores a mano quedan como control (`TC_OBSERVADO_BDE`).
+   `TOPE_AJUSTES` y `TOPE_PLURIANUAL` en `dominio`. Efecto: ING-5 se mueve
+   1.305 millones (0,002%); el resto sin cambios.
 3. B2: años de corte en config; encoding uniforme de CSV.
 4. Cifra oficial de ingresos (IFP 4T) para más años en el 10; hoy solo 2024.
 5. C2 (opcional): `ENTRADAS`/`SALIDAS` declaradas por script.

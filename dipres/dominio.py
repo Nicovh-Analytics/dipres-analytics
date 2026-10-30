@@ -13,6 +13,8 @@ Uso:
     from dipres.dominio import MESES, NIVELES, keys_de_nivel, tipo_flujo
 """
 
+from functools import lru_cache
+
 # =====================================================
 # TIEMPO
 # =====================================================
@@ -392,9 +394,14 @@ def subtitulos_con_naturaleza(naturaleza: str) -> set[int]:
 #                 fila "Tipo de cambio ($/US$, promedio, valor nominal)",
 #                 columna del año presupuestado. Ej.: presupuesto 2024 →
 #                 IFP 3T23 → 832.  Se usa para la ley.
-#   TC_OBSERVADO  dólar observado promedio del año. Fuente: Banco Central,
-#                 BDE > Tipos de cambio > Dólar observado. Se usa para la
-#                 ejecución.
+#   TC_OBSERVADO  dólar observado promedio del año, calculado de la serie
+#                 diaria del Banco Central que baja 04_tipos_cambio.py
+#                 (raw/externo/tipo_cambio/diario.csv). Se usa para la
+#                 ejecución. Un año sin datos hasta el 20 de diciembre
+#                 (el año en curso) queda en None.
+#   TC_OBSERVADO_BDE  los mismos promedios cargados a mano desde la BDE,
+#                 redondeados. Ya no se usan para convertir: solo como
+#                 control externo en 04_tipos_cambio.py.
 #
 # Regla: comparar cada moneda en su propia unidad cuando se pueda; convertir
 # solo para cuadrar con un total oficial en pesos. Convertir ley y ejecución
@@ -410,19 +417,49 @@ TC_SUPUESTO: dict[int, float | None] = {
 }
 
 
-TC_OBSERVADO: dict[int, float | None] = {
+TC_OBSERVADO_BDE: dict[int, float] = {
     2017: 649, 2018: 640, 2019: 702, 2020: 792, 2021: 759,
-    2022: 872, 2023: 839, 2024: 943, 2025: 951, 2026: None,   # año en curso: promedio a la fecha del último corte
+    2022: 872, 2023: 839, 2024: 943, 2025: 951,
 }
 
-_TASAS = {"supuesto": TC_SUPUESTO, "observado": TC_OBSERVADO}
+
+@lru_cache(maxsize=1)
+def _tc_observado() -> dict[int, float | None]:
+    """Dólar observado promedio por año desde la serie diaria (una sola
+    lectura por proceso)."""
+    import pandas as pd
+
+    from dipres.config import DIRS
+    ruta = (DIRS.get("externo", DIRS["raw"] / "externo")
+            / "tipo_cambio" / "diario.csv")
+    if not ruta.exists():
+        raise FileNotFoundError(
+            f"{ruta} no existe: correr pipeline/1_extraccion/04_tipos_cambio.py")
+    d = pd.read_csv(ruta, encoding="utf-8-sig", parse_dates=["fecha"])
+    d = d[d["indicador"] == "dolar"]
+    out = {}
+    for anio, g in d.groupby(d["fecha"].dt.year):
+        completo = g["fecha"].max() >= pd.Timestamp(int(anio), 12, 20)
+        out[int(anio)] = round(float(g["valor"].mean()), 2) if completo else None
+    return out
+
+
+def __getattr__(nombre):
+    """`from dipres.dominio import TC_OBSERVADO` lee la serie al usarse,
+    no al importar el módulo (los scripts que no convierten no la necesitan)."""
+    if nombre == "TC_OBSERVADO":
+        return _tc_observado()
+    raise AttributeError(f"module {__name__!r} has no attribute {nombre!r}")
 
 
 def tipo_cambio(anio, tasa: str) -> float:
     """Tipo de cambio del año; `tasa` = "supuesto" u "observado"."""
-    tc = _TASAS[tasa].get(int(anio))
+    tasas = {"supuesto": TC_SUPUESTO, "observado": _tc_observado()}
+    tc = tasas[tasa].get(int(anio))
     if tc is None:
-        raise KeyError(f"Falta TC_{tasa.upper()}[{int(anio)}] en dominio.py")
+        origen = ("dominio.TC_SUPUESTO" if tasa == "supuesto"
+                  else "la serie diaria (04_tipos_cambio.py; año incompleto?)")
+        raise KeyError(f"Falta el tipo de cambio {tasa} de {int(anio)} en {origen}")
     return tc
 
 
@@ -442,8 +479,34 @@ def a_pesos(df, columnas, tasa: str, col_anio="Año", col_moneda="Moneda"):
 def desvio_tipo_cambio():
     """Supuesto vs observado por año (solo años con ambos ingresados)."""
     import pandas as pd
-    filas = [(a, s, TC_OBSERVADO.get(a)) for a, s in TC_SUPUESTO.items()
-             if s is not None and TC_OBSERVADO.get(a) is not None]
+    obs = _tc_observado()
+    filas = [(a, s, obs.get(a)) for a, s in TC_SUPUESTO.items()
+             if s is not None and obs.get(a) is not None]
     d = pd.DataFrame(filas, columns=["Año", "supuesto", "observado"])
     d["desvio_pct"] = (d["observado"] / d["supuesto"] - 1) * 100
     return d
+
+
+# ---------------------------------------------------------------------------
+# ENDEUDAMIENTO (Art. 3 de cada Ley de Presupuestos)
+# ---------------------------------------------------------------------------
+# El tope se lee del texto de la ley (11b). Las leyes que lo modificaron
+# durante el año no están en ese texto: van acá, con su fuente. Montos en
+# miles de US$. Llenar solo con fuente verificada.
+
+# Modificaciones al tope de un año: {año: [(monto, "ley y fuente"), ...]}
+TOPE_AJUSTES: dict[int, list[tuple[float, str]]] = {
+    # Autorización aparte del Art. 3, solo para 2020. Cuadra con el "margen
+    # de endeudamiento anual de US$13.000 millones" informado en mayo 2020:
+    # 8.000 + 500 (Art. 3) + 4.000 (esta ley) + 500 (bonos de reconocimiento)
+    2020: [(4_000_000, "Ley 21.225, art. quinto (D.O. 02-04-2020): hasta "
+                       "US$4.000 millones durante 2020")],
+}
+
+# Autorizaciones de leyes especiales con un monto para varios años (bolsa
+# común): {ley: (monto, [años])}. Se usan para ver si el exceso sobre el
+# Art. 3 de esos años cabe en la bolsa.
+TOPE_PLURIANUAL: dict[str, tuple[float, list[int]]] = {
+    # Art. 6: hasta US$8.000 millones, vigente hasta el 30-06-2022
+    "Ley 21.288 (Fondo COVID)": (8_000_000, [2020, 2021, 2022]),
+}

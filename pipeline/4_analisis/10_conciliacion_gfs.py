@@ -24,7 +24,7 @@ Controles (reports/_controles/, tabla de run.py):
      perímetro extrapresupuestario, ~2-3%), o tipo de cambio faltante
   ℹ desvío del tipo de cambio y conciliación de cada año
 
-Requiere TC_SUPUESTO y TC_OBSERVADO llenos en dominio.py.
+Requiere TC_SUPUESTO en dominio.py y la serie diaria de 04_tipos_cambio.py.
 
 Uso:
     python pipeline/4_analisis/10_conciliacion_gfs.py
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     print("=" * 78)
     tc = desvio_tipo_cambio()
     if tc.empty:
-        print("\n  Sin datos: llenar TC_SUPUESTO y TC_OBSERVADO en dominio.py")
+        print("\n  Sin datos: revisar TC_SUPUESTO y correr 04_tipos_cambio.py")
     else:
         print(f"\n{'Año':>6}{'Supuesto':>12}{'Observado':>12}{'Desvío':>10}")
         for _, r in tc.iterrows():

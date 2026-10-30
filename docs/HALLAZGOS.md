@@ -82,9 +82,9 @@
 
 ### ING-5 · Los ingresos del dataset concilian con la cifra oficial
 
-**Condición.** Los ingresos 2024 con perímetro del manual del FMI calculados desde el dataset (67.650.572 millones de $) difieren en -0,55% de la cifra oficial de DIPRES (67.283.221 millones): el dataset queda 367.351 millones por sobre la cifra oficial.
+**Condición.** Los ingresos 2024 con perímetro del manual del FMI calculados desde el dataset (67.651.877 millones de $) difieren en -0,55% de la cifra oficial de DIPRES (67.283.221 millones): el dataset queda 368.656 millones por sobre la cifra oficial.
 
-**Criterio.** Informe de Finanzas Públicas 4T24, ingresos del Gobierno Central Total. Dólares convertidos al observado promedio (943,0 $/US$).
+**Criterio.** Informe de Finanzas Públicas 4T24, ingresos del Gobierno Central Total. Dólares convertidos al observado promedio (943,6 $/US$).
 
 **Evidencia.** `10_conciliacion_gfs.py → conciliacion_ingresos.csv`
 
@@ -98,7 +98,7 @@
 
 **Criterio.** Supuesto: tipo de cambio promedio del Informe de Finanzas Públicas del 3er trimestre del año anterior. Observado: promedio anual del Banco Central.
 
-**Evidencia.** `10_conciliacion_gfs.py → tipo_cambio_desvio.csv; valores en dominio.TC_SUPUESTO y TC_OBSERVADO (ingresados a mano)`
+**Evidencia.** `10_conciliacion_gfs.py → tipo_cambio_desvio.csv; valores en dominio.TC_SUPUESTO (IFP, ingresado a mano) y TC_OBSERVADO (promedio de la serie diaria del Banco Central, 04_tipos_cambio.py)`
 
 **Alcance.** Los años con desvíos grandes coinciden con shocks (2019, 2020, 2022, 2024); con n = 9 no es evidencia de sesgo del método. Cuando el dólar sube, lo presupuestado en dólares rinde más pesos.
 

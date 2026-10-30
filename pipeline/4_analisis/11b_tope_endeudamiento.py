@@ -30,12 +30,13 @@ falta el detalle de cada emisión y su destino). Se acota por dos lados:
   neto ≤ tope < bruto     → INDETERMINADO con estos datos
 
 Los pesos se pasan a US$ con el dólar observado promedio del año
-(dominio.TC_OBSERVADO): aproximación, cada emisión ocurre a su fecha.
+(dominio.TC_OBSERVADO, de la serie diaria del Banco Central):
+aproximación, cada emisión ocurre a su fecha.
 
 El tope se lee del texto de la ley (12_descarga_normativa.py). Las leyes
 que lo modificaron durante el año no están en ese texto: se agregan a mano
-en TOPE_AJUSTES (un año) o TOPE_PLURIANUAL (bolsa para varios años, p. ej.
-Ley 21.288), con su fuente.
+en dominio.TOPE_AJUSTES (un año) o dominio.TOPE_PLURIANUAL (bolsa para
+varios años, p. ej. Ley 21.288), con su fuente.
 
 Uso:
     python pipeline/4_analisis/11b_tope_endeudamiento.py
@@ -46,7 +47,8 @@ import re
 import pandas as pd
 
 from dipres.config import DIRS
-from dipres.dominio import MES_A_NUM, NUM_A_MES, TC_OBSERVADO, tipo_cambio
+from dipres.dominio import (MES_A_NUM, NUM_A_MES, TC_OBSERVADO, TOPE_AJUSTES,
+                            TOPE_PLURIANUAL, tipo_cambio)
 from dipres.hallazgos import Registro
 from dipres.utils import leer_csv_robusto
 
@@ -58,24 +60,6 @@ ITEMS_AMORTIZACION = {1: "Amortización deuda interna",
                       2: "Amortización deuda externa"}
 
 DIR_TEXTO = DIRS.get("normativa", DIRS["base"] / "normativa") / "texto"
-
-# Modificaciones legales al tope durante el año, en miles de US$.
-# {año: [(monto, "ley y fuente"), ...]}. Llenar solo con fuente verificada.
-TOPE_AJUSTES: dict[int, list[tuple[float, str]]] = {
-    # Autorización aparte del Art. 3, solo para 2020. Cuadra con el "margen
-    # de endeudamiento anual de US$13.000 millones" informado en mayo 2020:
-    # 8.000 + 500 (Art. 3) + 4.000 (esta ley) + 500 (bonos de reconocimiento)
-    2020: [(4_000_000, "Ley 21.225, art. quinto (D.O. 02-04-2020): hasta "
-                       "US$4.000 millones durante 2020")],
-}
-
-# Autorizaciones de leyes especiales con un monto para varios años (bolsa
-# común), en miles de US$. Se usan para ver si el exceso sobre el Art. 3
-# de esos años cabe en la bolsa.
-TOPE_PLURIANUAL: dict[str, tuple[float, list[int]]] = {
-    # Art. 6: hasta US$8.000 millones, vigente hasta el 30-06-2022
-    "Ley 21.288 (Fondo COVID)": (8_000_000, [2020, 2021, 2022]),
-}
 
 _RX_INICIO = re.compile(
     r"Autor[íi]zase\s+al?\s+(?:la\s+)?President[ae]\s+de\s+la\s+Rep[úu]blica"
@@ -273,7 +257,7 @@ if __name__ == "__main__":
                          f"reconocimiento en el art. 3", anio=a,
                          patron="sin inciso de bonos de reconocimiento")
 
-    print(f"\n  Tope  = inciso 1 + inciso 2 (+ ajustes por ley en TOPE_AJUSTES)")
+    print(f"\n  Tope  = inciso 1 + inciso 2 (+ ajustes por ley en dominio.TOPE_AJUSTES)")
     print(f"  Bruto = subt. 14 ejecutado → cota superior del endeudamiento computable")
     print(f"  Neto  = bruto − amortizaciones 34.01/34.02 → cota inferior")
     print(f"  SOBRE = excede aun con la cota inferior: revisar leyes modificatorias")

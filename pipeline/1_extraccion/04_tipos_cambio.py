@@ -9,8 +9,11 @@ Las usan los cruces que convierten monedas: 18c_cruce_bonos.py pasa los
 bonos en UF a pesos y los bonos en euros a dólares con el promedio del
 periodo de cada emisión.
 
-Control: el dólar promedio anual se compara con dominio.TC_OBSERVADO, que
-se cargó a mano desde la BDE del Banco Central. Si difieren más de 0,1%, se
+Es la única fuente del dólar observado del pipeline: dominio.TC_OBSERVADO
+se calcula de diario.csv. anual.csv es un resumen legible.
+
+Control: el dólar promedio anual se compara con dominio.TC_OBSERVADO_BDE,
+cargado a mano desde la BDE del Banco Central. Si difieren más de 0,1%, se
 avisa (son la misma serie, así que no debería pasar).
 
 Salidas en raw/externo/tipo_cambio/:
@@ -30,7 +33,7 @@ import pandas as pd
 import requests
 
 from dipres.config import DIRS
-from dipres.dominio import TC_OBSERVADO
+from dipres.dominio import TC_OBSERVADO_BDE
 
 URL = "https://mindicador.cl/api/{indicador}/{anio}"
 INDICADORES = ["dolar", "euro", "uf"]
@@ -85,9 +88,9 @@ def main() -> None:
                                 values="valor", aggfunc="mean")
                    [INDICADORES].round(2).reset_index())
 
-    print("\n  Control: dólar promedio anual vs dominio.TC_OBSERVADO")
+    print("\n  Control: dólar promedio anual vs dominio.TC_OBSERVADO_BDE")
     for r in anual.itertuples():
-        ref = TC_OBSERVADO.get(r.anio)
+        ref = TC_OBSERVADO_BDE.get(r.anio)
         if ref is None:
             continue
         dif = (r.dolar / ref - 1) * 100

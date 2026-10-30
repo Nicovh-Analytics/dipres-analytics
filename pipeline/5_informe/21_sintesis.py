@@ -304,7 +304,8 @@ def bloque_ingresos() -> list[Hallazgo]:
             "del 3er trimestre del año anterior. Observado: promedio anual del "
             "Banco Central.",
             "10_conciliacion_gfs.py → tipo_cambio_desvio.csv; valores en "
-            "dominio.TC_SUPUESTO y TC_OBSERVADO (ingresados a mano)",
+            "dominio.TC_SUPUESTO (IFP, ingresado a mano) y TC_OBSERVADO "
+            "(promedio de la serie diaria del Banco Central, 04_tipos_cambio.py)",
             "Los años con desvíos grandes coinciden con shocks (2019, 2020, 2022, "
             "2024); con n = 9 no es evidencia de sesgo del método. Cuando el "
             "dólar sube, lo presupuestado en dólares rinde más pesos.",
