@@ -1,8 +1,7 @@
 """
 Validación interna de datos DIPRES (v3)
 ========================================
-Verifica consistencia de los CSVs consolidados antes de
-publicar el dashboard.
+Verifica consistencia de los CSVs consolidados antes del análisis.
 
 Checks:
   1. Cobertura temporal — ¿hay meses faltantes por año?
@@ -15,6 +14,15 @@ Checks:
   8. Estructura a nivel de fila — delimitadores consistentes
   9. Encoding consistente entre archivos fuente
  10. Cambios de estructura institucional y descuadres partida/capítulo
+ 11. Cuadre interno de la ley a nivel programa: fila total del subtítulo
+     vs Σ de su detalle, dentro del mismo archivo
+
+Política de controles (tabla de run.py):
+  ❌ el dato no se leyó o no reconcilia: archivo faltante, meses faltantes
+     en un año cerrado, nulos en claves, coherencia entre niveles bajo
+     MIN_CUADRA_PCT
+  ⚠ hallazgo de la fuente ya documentado (docs/CALIDAD_FUENTE.md):
+     duplicados de origen, discrepancias puntuales entre niveles
 
 Uso:
     python pipeline/3_validacion/06_validar.py
@@ -35,6 +43,7 @@ from dipres.estructura import (asociar, catalogo_capitulos, descuadres_partida,
 reg = Registro("validacion", salida_dir=DIRS["reportes"])
 
 CONSOLIDADO_DIR = DIRS["consolidado"]
+MIN_CUADRA_PCT = 99.0   # coherencia entre niveles: bajo esto, ❌
 MESES_ORDEN = MESES
 
 resultados = {"errores": 0, "advertencias": 0, "ok": 0}
@@ -44,20 +53,23 @@ _cache: dict[str, pd.DataFrame | None] = {}
 # =====================================================
 # UTILIDADES
 # =====================================================
-def error(msg):
+def _extra(patron):
+    return {"patron": patron} if patron else {}
+
+def error(msg, control="general", patron=None):
     resultados["errores"] += 1
-    reg.error("general", msg)
+    reg.error(control, msg, **_extra(patron))
 
-def advertencia(msg):
+def advertencia(msg, control="general", patron=None):
     resultados["advertencias"] += 1
-    reg.warn("general", msg)
+    reg.warn(control, msg, **_extra(patron))
 
-def ok(msg):
+def ok(msg, control="general"):
     resultados["ok"] += 1
-    reg.ok("general", msg)
+    reg.ok(control, msg)
 
-def info(msg):
-    reg.info("general", msg)
+def info(msg, control="general"):
+    reg.info(control, msg)
 
 
 def cargar(nombre):
@@ -146,8 +158,12 @@ def check_duplicados(df, nombre, nivel):
 
     if n_dup > 0:
         n_combis = df.loc[duplicados, keys_presentes].drop_duplicates().shape[0]
-        error(f"{n_dup} filas duplicadas ({n_combis} combinaciones) en keys {keys_presentes}")
-        
+        # Publicación doble del lado de la ley (CALIDAD_FUENTE): es un
+        # hallazgo de la fuente, no una falla de lectura
+        advertencia(f"{nombre}: {n_dup} filas duplicadas ({n_combis} "
+                    f"combinaciones) en keys {keys_presentes}",
+                    control="duplicados", patron="duplicados de origen")
+
         # Analizar origen
         print(f"    Distribución:")
         for col in ["Partida", "Año"]:
@@ -423,15 +439,25 @@ def check_coherencia(nivel_alto, nivel_bajo, nombre_alto, nombre_bajo, keys_extr
             if otro.any():
                 max_diff = diff[otro].max()
                 pct_ok = (total - int(otro.sum())) / total * 100
-                error(f"{campo}: {int(otro.sum())} discrepancias no explicadas por "
-                      f"consolidación (máx: {max_diff:,.0f}, {pct_ok:.1f}% cuadra)")
+                msg = (f"{nombre_alto} vs {nombre_bajo}, {campo}: "
+                       f"{int(otro.sum())} discrepancias no explicadas por "
+                       f"consolidación (máx: {max_diff:,.0f}, {pct_ok:.1f}% cuadra)")
+                if pct_ok < MIN_CUADRA_PCT:
+                    error(msg, control="coherencia",
+                          patron=f"cuadra menos de {MIN_CUADRA_PCT}%")
+                else:
+                    advertencia(msg, control="coherencia",
+                                patron="discrepancias puntuales entre niveles")
                 por_mes = (comp[otro].groupby(["Año", "Mes"]).size()
                            .sort_values(ascending=False).head(5))
                 print("    Año-Mes con más casos: " + ", ".join(
                     f"{int(a)}-{m}×{n}" for (a, m), n in por_mes.items()))
                 por_sub = comp[otro].groupby("Subtítulo").size().sort_values(ascending=False).head(8)
                 print("    Subtítulos: " + ", ".join(f"{int(k):02d}×{v}" for k, v in por_sub.items()))
-                for _, row in comp[otro].head(3).iterrows():
+                # Los casos más grandes, no los primeros: el máximo es el
+                # que hay que poder explicar
+                mayores = comp[otro].assign(_d=diff[otro]).nlargest(3, "_d")
+                for _, row in mayores.iterrows():
                     ctx = " | ".join(f"{k}={row[k]}" for k in keys_comunes)
                     print(f"    {ctx}: alto={row[col_alto]:,.0f} vs bajo={row[col_bajo]:,.0f}")
             else:
@@ -476,6 +502,54 @@ def check_estructura_institucional():
                     f"asociado · meses: " + ", ".join(
                         f"{int(a)}-{m}×{n}" for (a, m), n in meses.items()))
     print("    detalle: python pipeline/4_analisis/20_estructura_institucional.py")
+
+
+# =====================================================
+# CHECK 11 — Cuadre interno de la ley (programa)
+# =====================================================
+def check_cuadre_interno(cruce):
+    """La ley a nivel programa publica el total de cada subtítulo y su
+    detalle. Si el detalle no suma el total en el MISMO archivo, faltan
+    líneas en la publicación (p. ej. Tesoro 50-01, subt. 01, agosto 2024:
+    faltan 1.1, 1.4, 2.1, 6.6 y 9.103, 110,5 billones). Es un hallazgo de
+    la fuente: la lectura no descarta filas (filas_descartadas = 0)."""
+    separador("CHECK 11 — Cuadre interno de la ley (programa)")
+    if cruce is None or "Item" not in cruce.columns:
+        advertencia("Sin cruce_programa con Item: no se puede verificar")
+        return
+    base = [c for c in ["Año", "Mes", "Moneda", "Partida", "Capítulo",
+                        "Programa", "Subtítulo"] if c in cruce.columns]
+    es_ley = (cruce["origen"] != "solo_ejecucion") if "origen" in cruce.columns \
+        else pd.Series(True, index=cruce.index)
+    hoja = hojas(cruce)
+    total_sub = es_ley & cruce["Item"].isna() & ~hoja
+    if "Asignación" in cruce.columns:
+        total_sub &= cruce["Asignación"].isna()
+    tot = cruce[total_sub].groupby(base)["ley_vigente"].sum()
+    det = cruce[es_ley & hoja].groupby(base)["ley_vigente"].sum()
+    c = pd.DataFrame({"total": tot}).join(det.rename("detalle"), how="left")
+    c["detalle"] = c["detalle"].fillna(0)
+    c["faltante"] = c["total"] - c["detalle"]
+    malos = c[c["faltante"].abs() > TOLERANCIAS["monto"]]
+    if malos.empty:
+        ok(f"El detalle suma el total en los {len(c):,} subtítulos con detalle",
+           control="cuadre_interno")
+        return
+    pct = (1 - len(malos) / len(c)) * 100
+    meses = malos.groupby(level=["Año", "Mes"]).size().sort_values(ascending=False)
+    advertencia(f"{len(malos):,} de {len(c):,} subtítulos ({100 - pct:.2f}%) "
+                f"con detalle que no suma el total del mismo archivo · meses: "
+                + ", ".join(f"{int(a)}-{m}×{n}" for (a, m), n in meses.head(6).items()),
+                control="cuadre_interno",
+                patron="publicación con líneas de detalle faltantes")
+    mayores = malos.reindex(malos["faltante"].abs().sort_values(
+        ascending=False).index).head(3)
+    for k, row in mayores.iterrows():
+        ctx = " | ".join(f"{n}={v}" for n, v in zip(base, k))
+        print(f"    {ctx}: total={row.total:,.0f} vs detalle={row.detalle:,.0f}")
+    malos.reset_index().to_csv(DIRS["reportes"] / "ley_detalle_incompleto.csv",
+                               index=False, encoding="utf-8-sig")
+    print("    detalle: reports/ley_detalle_incompleto.csv")
 
 
 # =====================================================
@@ -639,6 +713,7 @@ if __name__ == "__main__":
         keys_extra=["Partida", "Capítulo"])
 
     check_estructura_institucional()
+    check_cuadre_interno(cruce_programa)
 
     # ─── Checks de archivos fuente ───
     print(f"\n{'='*60}")

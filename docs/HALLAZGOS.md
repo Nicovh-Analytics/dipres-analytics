@@ -1,14 +1,14 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 16-10-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 29-10-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
-**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas y el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025).
+**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025) y los tipos de cambio del Banco Central.
 
-**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son errores del texto de la ley), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
+**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son un error del texto de la ley, CALIDAD_FUENTE.md §10), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 
-**Lo que el dataset no ve:** leyes dictadas durante el año, gastos excedibles, detalle de emisiones de deuda. Por eso ningún hallazgo concluye "incumple": cuando algo no se explica con los datos, se indica que requiere respaldo legal.
+**Lo que el dataset no ve:** leyes dictadas durante el año, gastos excedibles, el destino de cada operación de deuda. Por eso ningún hallazgo concluye "incumple": cuando algo no se explica con los datos, se indica que requiere respaldo legal.
 
 ## Resumen
 
@@ -26,7 +26,7 @@
 | EJE-2 | La subejecución se repite en las mismas líneas | alta |
 | EJE-3 | Las compras de activos se concentran en diciembre todos los años | media |
 | EJE-4 | Algunas líneas se ejecutan por sobre lo autorizado de forma recurrente | media |
-| DEU-1 | El endeudamiento se mantiene dentro de las autorizaciones legales verificables | media |
+| DEU-1 | El endeudamiento estimado cabe en las autorizaciones legales, con varios años en el límite | media |
 | EST-1 | Cada año cambia entre el 1% y el 10% de los servicios | alta |
 | EST-2 | La Nueva Educación Pública se ve año a año en el presupuesto | alta |
 | EST-3 | Las instituciones nuevas pasaron a crearse en enero | media |
@@ -35,28 +35,30 @@
 | CAL-2 | Los archivos de DIPRES requieren correcciones puntuales para leerse completos | alta |
 | VAL-1 | El presupuesto publicado por DIPRES coincide con el de Contraloría | alta |
 | VAL-2 | La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas | media |
+| VAL-3 | La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado | alta |
+| FIN-1 | La deuda neta financió entre el 9% y el 19% de cada año | análisis |
 
 ## Ingresos: proyección y recaudación
 
 ### ING-1 · El sesgo de proyección de ingresos es un efecto de perímetro
 
-**Condición.** Si se suman los subtítulos 01-15 de ingresos, la ley subestima lo recaudado en 9 de 9 años (p = 0,004), con un error medio de +14,9%. Al excluir lo que no es ingreso en sentido económico (endeudamiento, venta de activos financieros, recuperación de préstamos, saldo de caja), el error medio baja a +3,7% y el sesgo deja de ser significativo (subestima 5 años y sobreestima 4, p = 1,000). Solo con las líneas que son pronóstico: +4,1%, p = 1,000.
+**Condición.** Si se suman los subtítulos 01-15 de ingresos, la ley subestima lo recaudado en 9 de 9 años (p = 0,004), con un error medio de +14,9%. Al excluir lo que no es ingreso en sentido económico (endeudamiento, venta de activos financieros, recuperación de préstamos, saldo de caja), el error medio baja a +3,7% y el sesgo deja de ser significativo (subestima 5 años y sobreestima 4, p = 1,000). Solo con las líneas que son pronóstico: +4,1%, p = 1,000. El sesgo desaparece, pero el error no: con el perímetro del FMI el error típico (promedio sin signo) es de 9,3%, con un máximo de +35% en 2022.
 
 **Criterio.** Ley inicial contra ejecución acumulada a diciembre, pesos, años completos (n = 9). Prueba de signos binomial exacta, bilateral. Perímetro de ingreso según el Manual de Estadísticas de Finanzas Públicas (FMI).
 
 **Evidencia.** `18_ingresos.py → ingresos_prueba_signo.csv, ingresos_agregados.csv`
 
-**Alcance.** Solo moneda nacional. La correspondencia con las categorías del manual del FMI está verificada para los subtítulos principales; la de algunos subtítulos menores es inferida (dominio.CONCORDANCIA_GFS).
+**Alcance.** Solo moneda nacional. La correspondencia con las categorías del manual del FMI está verificada para los subtítulos principales; la de algunos subtítulos menores es inferida (dominio.CONCORDANCIA_GFS). La suma de subtítulos en pesos incluye además las operaciones de cambio (subt. 11, ítem 03): dólares que el Tesoro convierte a pesos y que en moneda nacional se registran como ingreso (ver ING-2 y CALIDAD_FUENTE.md, §12).
 
 ### ING-2 · La mayor parte del error no es error de pronóstico
 
-**Condición.** De la diferencia total entre ley y recaudación 2017-2025, el 76% proviene de líneas que en la ley son autorizaciones (permisos para endeudarse o vender activos), no estimaciones: Venta de Activos Financieros (subt. 11): 57,6% del error con 2,8% de la ley; Endeudamiento (subt. 14): 18,6% del error con 16,4% de la ley. Las líneas de pronóstico aportan el 18% y las discrecionales el 6%.
+**Condición.** De la diferencia total entre ley y recaudación 2017-2025, el 76% proviene de líneas que en la ley son autorizaciones (permisos para endeudarse o vender activos), no estimaciones: Venta de Activos Financieros (subt. 11): 57,6% del error con 2,8% de la ley; Endeudamiento (subt. 14): 18,6% del error con 16,4% de la ley. Las líneas de pronóstico aportan el 18% y las discrecionales el 6%. Dentro de Venta de Activos Financieros, las operaciones de cambio (ítem 03) suman 50,2 billones de pesos en el período, el 98% de su desvío: son dólares que el Tesoro convierte a pesos, que en moneda nacional se registran como ingreso y en dólares como ingreso negativo. Sin ellas, el aporte del subtítulo 11 al error sería de 1%.
 
 **Criterio.** Aporte de cada subtítulo a la suma de (ejecutado − inicial) de todos los años, sin saldo de caja ni aporte fiscal.
 
 **Evidencia.** `18_ingresos.py → ingresos_contribucion.csv`
 
-**Alcance.** La naturaleza (pronóstico, autorización, discrecional) es una clasificación del proyecto (dominio.NATURALEZA_INGRESO). El 11 confirma empíricamente que venta de activos financieros se comporta como tope; el endeudamiento se contrasta con el art. 3 en el 11b.
+**Alcance.** La naturaleza (pronóstico, autorización, discrecional) es una clasificación del proyecto (dominio.NATURALEZA_INGRESO). La ley inicial no se publica por ítem, así que la parte de las operaciones de cambio se mide con lo ejecutado (18b_financiamiento.py → financiamiento_activos.csv). El endeudamiento se contrasta con el art. 3 en DEU-1.
 
 ### ING-3 · Impuestos: sin sesgo acumulado, pero el año típico recauda menos de lo proyectado
 
@@ -162,15 +164,17 @@
 
 **Alcance.** Ejecutar sobre lo vigente solo es legal en gastos excedibles (art. 28 DL 1.263) o con ingresos propios; los datos no identifican esa base legal.
 
-### DEU-1 · El endeudamiento se mantiene dentro de las autorizaciones legales verificables
+### DEU-1 · El endeudamiento estimado cabe en las autorizaciones legales, con varios años en el límite
 
-**Condición.** De 9 años: 1 dentro del tope del art. 3 aun sin descontar amortizaciones, 4 indeterminados con estos datos, 2 (2020, 2021) sobre el art. 3 pero dentro de la autorización adicional de la Ley 21.288 (Fondo COVID) y 2 (2017, 2019) con excesos sin ley adicional identificada (uso neto 104%, 108%).
+**Condición.** Uso estimado del margen del art. 3 (entre paréntesis, base sobre el tope): dentro del tope aun con la cota alta: 2022 (64%), 2023 (98%), 2024-2025 (98%); dentro con las autorizaciones de leyes especiales (Ley 21.225 en 2020 y bolsa de la Ley 21.288 para 2020-2022): 2020 (109%), 2021 (133%); en el límite (la base o la cota alta superan el tope, pero no el tope ampliado con la autorización para bonos de reconocimiento): 2018 (100%), 2019 (102%); 2017 supera el tope ampliado por 93 millones de US$ (+0,8%), menos que el margen de error de la estimación.
 
-**Criterio.** Tope = incisos 1 y 2 del art. 3 de cada ley (más la Ley 21.288 en 2020-2022). Endeudamiento del Tesoro acotado entre bruto (subt. 14) y neto de amortizaciones (34.01-34.02), en US$ al observado.
+**Criterio.** Base = bonos emitidos a valor nominal en US$ (reportes de deuda de DIPRES) − prepagos de deuda de años anteriores − bonos emitidos y vencidos el mismo año (inciso 4°). Cota alta = base + residuo en dólares del cruce con el subt. 14 (créditos con organismos). Tope = incisos 1 y 2 del art. 3 (+ Ley 21.225 en 2020); tope ampliado = tope + autorización aparte para bonos de reconocimiento. Conversión con el dólar, euro y UF promedio del periodo de cada emisión.
 
-**Evidencia.** `11b_tope_endeudamiento.py → tope_endeudamiento.csv`
+**Evidencia.** `11b_tope_endeudamiento.py, 11c_bonos_deuda.py, 18c_cruce_bonos.py, 18d_margen_endeudamiento.py → margen_endeudamiento.csv`
 
-**Alcance.** El cómputo legal requiere el detalle de cada emisión; los excesos pequeños pueden deberse a la conversión cambiaria o a deuda de corto plazo no registrada como amortización.
+**Alcance.** No se puede medir con datos públicos: cuánto se usó de la autorización para bonos de reconocimiento, la deuda emitida y vencida entre dos reportes de deuda, ni el tipo de cambio de cada operación. 2024 y 2025 se evalúan juntos porque los reportes de 2024 no permiten separar la emisión local. El cómputo oficial se pidió por Ley 20.285.
+
+**Explicación de la diferencia.** La versión anterior de este hallazgo, que acotaba el endeudamiento entre el subt. 14 bruto y neto de amortizaciones, marcaba sobre el tope 2017, 2019. Cambió al medir los bonos a valor nominal (el subt. 14 registra lo recibido en caja, con el premio de colocación), descontar los prepagos y los bonos emitidos y vencidos el mismo año, sumar la autorización para bonos de reconocimiento y la Ley 21.225 (art. quinto: US$4.000 millones para 2020).
 
 ## Estructura institucional
 
@@ -259,3 +263,27 @@
 **Alcance.** Ambas fuentes cubren los mismos servicios en las partidas revisadas (conteo de servicios del IGFE vs capítulos del dataset). La CGR consolida datos recibidos hasta febrero o marzo del año siguiente. Los IGFE no explican las diferencias ni concilian con DIPRES, y la CGR no publica cifras bajo el nivel partida, por lo que la línea exacta no se puede identificar desde afuera. Gobiernos Regionales se excluye: la CGR obtiene su ejecución de otra fuente (información por región).
 
 **Explicación de la diferencia.** Tres tipos, según dónde cae la diferencia: (1) consolidación: en Salud la CGR elimina menos transferencias internas que DIPRES (queda entre la partida consolidada y la suma de capítulos); (2) registros que el dataset no tiene en ningún nivel: RREE inversiones y Trabajo prestaciones (2017-2018), donde partida y suma de capítulos coinciden y aun así la CGR registra más; (3) posible neteo: Poder Judicial informa préstamos negativos en el dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a DIPRES y a la CGR con estos casos.
+
+### VAL-3 · La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado
+
+**Condición.** El subtítulo 14 queda sobre la emisión de bonos entre +0,7% y +8,2% en la sección en dólares, todos los años, y entre +5,0% y +14,8% en la de pesos, salvo 2022 (-10,7%).
+
+**Criterio.** Bonos emitidos por serie según los Reportes de Deuda Bruta del Gobierno Central (diferencia de monto colocado entre reportes), convertidos a la moneda de cada sección (UF a pesos, euros a dólares) con el promedio del periodo, contra el subtítulo 14 ejecutado a diciembre.
+
+**Evidencia.** `11c_bonos_deuda.py, 18c_cruce_bonos.py → deuda_cruce_subt14.csv`
+
+**Alcance.** El subt. 14 incluye créditos con organismos que no son bonos y registra lo recibido en caja, no el valor nominal. Los bonos emitidos y vencidos entre dos reportes no se ven. Los reportes de deuda tienen inconsistencias entre ediciones, documentadas en CALIDAD_FUENTE.md, §13; las 52 tablas leídas cuadran con su total.
+
+**Explicación de la diferencia.** En dólares la diferencia positiva es la esperada por los créditos. En pesos, hipótesis sin verificar: el bono colocado sobre la par (tasa de mercado bajo el cupón) entrega más caja que su valor nominal, y bajo la par menos; en 2022 las tasas superaron los cupones de varias series. Verificarlo requiere el precio de cada colocación (resultados de licitación de Hacienda).
+
+## Análisis descriptivo (no son hallazgos de auditoría)
+
+### FIN-1 · La deuda neta financió entre el 9% y el 19% de cada año
+
+**Condición.** De las fuentes de financiamiento ejecutadas de cada año, los ingresos (perímetro FMI) aportaron entre el 65% y el 83%. La deuda neta (endeudamiento menos amortizaciones del año) aportó entre el 9% (2023) y el 19% (2021). La deuda que solo paga vencimientos pasó del 2% en 2017 al 13% en 2025. En 2022 (-10%) el año ahorró en títulos y depósitos en vez de usarlos.
+
+**Criterio.** Fuentes ejecutadas a diciembre, pesos y dólares (convertidos al dólar observado promedio), sin aporte fiscal ni saldo inicial de caja. Endeudamiento (subt. 14) separado con las amortizaciones del subt. 34; títulos neteados (11.01 − 30.01); sin operaciones de cambio (11.03).
+
+**Evidencia.** `18b_financiamiento.py → financiamiento_fuentes.csv`
+
+**Alcance.** Describe cómo se financió cada año; no evalúa si estuvo bien. Los retiros de los fondos soberanos no se identifican por separado en el dato.

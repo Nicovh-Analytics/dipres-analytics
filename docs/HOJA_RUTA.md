@@ -28,11 +28,13 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | 01–03 extracción | Descarga datos.gob.cl (ejecución y ley, 4 niveles) | — | S | OK |
 | 04_tipos_cambio | Dólar, euro y UF diarios (mindicador) | — | S | OK; dos `04` con el mismo número |
 | 12 | Descarga normativa (LeyChile) | — | S | OK |
-| 13_extraer_imagenes_ley | No sé qué hace | — | ? | Revisar o retirar |
-| 05–09 consolidación | Lectura robusta, cruces ley × ejecución | CAL | S | OK |
+| 13_extraer_imagenes_ley | Extrae las imágenes del art. 1 (base64 en el XML de LeyChile) | VAL-2 | S | Mantener; paso manual (OCR/lectura) |
+| 05_consolidar / 07_diccionario | Cruces ley × ejecución por nivel; diccionario | CAL | S | 05: 5 ⚠; 07 sin controles |
+| 04_perfilar / 06_validar | Perfil de columnas; coherencia entre niveles y duplicados | CAL | S | 06: 6 ❌ a reclasificar; `04` duplicado |
 | 14 / 15 validación | ley_inicial vs Ley publicada (art. 1) | VAL-2, VAL-3 | N | OK; escriben en `docs/` a propósito |
+| 15b_validar_vs_cgr | Ejecución vs IGFE de Contraloría | VAL | N | 132 ⚠ por revisar |
 | 10 conciliacion_gfs | Clasificador → GFS → cifra oficial; TC supuesto vs observado | ING-1, ING-2 | N | Controles agregados; cifra oficial solo 2024 |
-| 11 tope_vs_estimacion | Ley inicial como tope vs estimación | (ING-2) | ? | Huérfano: integrar o retirar |
+| 11 tope_vs_estimacion | ¿ley_inicial es pronóstico o tope? (prueba por patrones) | — | R | A `archivo/`: lo respondió la lectura normativa (11b, 17, 10) |
 | 11b tope_endeudamiento | Tope art. 3 leído del texto + ajustes legales | DEU-1 | N | OK |
 | 11c bonos_deuda | 52 tablas de los reportes de deuda | DEU-1 | S | OK; 5 ⚠ conocidos |
 | 16 modificaciones | Ley inicial → vigente, bruto y neto | MOD-1 | N | 5 ⚠ por revisar |
@@ -41,14 +43,13 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | 18b financiamiento | Fuentes de cada año, neteos | FIN-1 | R | OK (descriptivo) |
 | 18c cruce_bonos | Bonos vs subt. 14 | DEU-1 | S | OK |
 | 18d margen_endeudamiento | Uso estimado del tope art. 3 | DEU-1 | N | OK; cifra oficial pedida por Transparencia |
-| 19 aporte_fiscal | Aporte fiscal | — | ? | Salidas sin uso; 1 ⚠ |
+| 19 aporte_fiscal | Reconstruye el aporte fiscal por ministerio; valida contra art. 2 (2017-2020) | VAL | S | Mantener como validación; salidas = respaldo |
 | 20 estructura_institucional | Altas/bajas de servicios y descuadres | EST-3, CAL-1 | N | Controles agregados hoy; usa matplotlib |
 | 21 sintesis | Genera `HALLAZGOS.md` | todos | N | OK |
 | 22 / 23 gráficos | Hallazgos / análisis | — | S | DEU-1 con rango viejo |
 | herramientas/mapa_flujo | Mapa de dependencias | — | S | OK |
 
-Las filas 01–09 están de memoria a nivel de bloque; si algún número no
-calza, se corrige acá.
+Falta listar `pipeline/1_extraccion/` para completar la primera fila.
 
 ## 3. Lectura honesta de la alineación
 

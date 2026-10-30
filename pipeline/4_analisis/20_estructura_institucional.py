@@ -22,6 +22,13 @@ Salidas (DIRS["reportes"]):
   estructura_eventos.csv, estructura_resumen_anual.csv,
   descuadres_partida_capitulo.csv, estructura_institucional.png
 
+Controles (reports/_controles/, tabla de run.py):
+  ❌ ley_capitulo o ley_partida vacíos, o ningún evento detectado (lectura
+     fallida: en 10 años siempre hay altas y bajas)
+  ⚠ año con descuadres partida > Σ capítulos sin evento de estructura
+     asociado (base del CAL-1)
+  ℹ nombres inestables: ruido de la fuente, no cambios reales
+
 Uso:
     python pipeline/4_analisis/20_estructura_institucional.py
 """
@@ -29,6 +36,7 @@ Uso:
 import pandas as pd
 
 from dipres.config import DIRS, TOLERANCIAS
+from dipres.hallazgos import Registro
 from dipres.estructura import (VENTANA_ANTES, VENTANA_DESPUES, asociar,
                         catalogo_capitulos, descuadres_partida,
                         eventos_estructura, montos_capitulo)
@@ -100,12 +108,24 @@ def graficar(res: pd.DataFrame, desc: pd.DataFrame, ruta) -> None:
 
 
 if __name__ == "__main__":
+    reg = Registro("estructura_institucional", salida_dir=DIRS["reportes"],
+                   eco=False)
     cap = cargar("ley_capitulo.csv")
     par = cargar("ley_partida.csv")
+    if cap.empty or par.empty:
+        reg.error("lectura", "ley_capitulo o ley_partida sin filas",
+                  patron="consolidado vacío")
+        reg.emitir()
+        raise SystemExit(1)
 
     cat = catalogo_capitulos(cap)
     ev = eventos_estructura(cat, montos_capitulo(cap))
     inestables = ev[ev["tipo"] == "NOMBRE_INESTABLE"]
+    if ev[ev["tipo"] != "NOMBRE_INESTABLE"].empty:
+        reg.error("eventos", "no se detectó ningún cambio de estructura",
+                  patron="catálogo de capítulos mal leído")
+    else:
+        reg.ok("eventos", f"{len(ev)} eventos de estructura detectados")
 
     # ── 1. Eventos ────────────────────────────────────
     print("=" * 78)
@@ -124,6 +144,8 @@ if __name__ == "__main__":
         cods = inestables.groupby(["Partida", "Capítulo"]).size()
         print(f"\n  NOMBRE_INESTABLE (omitidos arriba): {len(inestables)} cambios en "
               f"{len(cods)} capítulos que alternan entre nombres ya usados")
+        reg.info("nombre_inestable", f"{len(inestables)} cambios en "
+                 f"{len(cods)} capítulos", patron="ruido de la fuente")
 
     # ── 2. Resumen anual ──────────────────────────────
     vigentes = cat.groupby("Año").apply(
@@ -168,6 +190,13 @@ if __name__ == "__main__":
         anual = desc.groupby("Año").agg(casos=("Partida", "size"),
                                         con_evento=("evento", lambda s: (s != "").sum()))
         print("\n" + anual.to_string())
+        for a, r in anual.iterrows():
+            sin_ev = int(r.casos - r.con_evento)
+            msg = (f"{a}: {int(r.casos)} descuadres partida > Σ capítulos, "
+                   f"{sin_ev} sin evento de estructura")
+            (reg.warn if sin_ev else reg.ok)(
+                "descuadre_partida", msg, anio=int(a),
+                patron="descuadre sin cambio de estructura asociado")
         print("\n  Casos sin evento asociado (los más grandes en pesos):")
         sin = desc[~con & (desc["Moneda"] == "PESOS")].nlargest(10, "exceso")
         for _, r in sin.iterrows():
@@ -183,3 +212,4 @@ if __name__ == "__main__":
     desc.to_csv(out / "descuadres_partida_capitulo.csv", index=False,
                 encoding="utf-8-sig")
     print(f"\n  Salidas en {out}")
+    reg.emitir()

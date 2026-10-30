@@ -9,9 +9,18 @@ descarga.py — Funciones compartidas por los scripts de descarga (02, 03)
                        datos ya publicados: es evidencia, no basura)
   tamano_remoto        Content-Length vía HEAD, para auditar archivos
                        descargados antes de existir el .part
-  LogDescarga          log JSON resumible, escrito de forma atómica
+  LogDescarga          log JSON resumible, escrito de forma atómica, con
+                       el SHA-256 de cada archivo descargado
+
+Detectar si DIPRES cambió un archivo ya descargado:
+  revisar_tamano     compara tamaños (HEAD). Rápido, pero ciego cuando el
+                     servidor no informa Content-Length, y no ve una
+                     corrección que pese lo mismo
+  revisar_contenido  vuelve a bajar y compara el SHA-256. Lento, pero
+                     concluyente; si no cambió, descarta la copia nueva
 """
 
+import hashlib
 import json
 import os
 import time
@@ -24,6 +33,15 @@ from dipres.config import CKAN, HTTP
 
 TIPOS_NO_CSV = ("text/html", "application/json")
 TAMANO_MINIMO = 100  # bytes; menos que esto no es un CSV con datos
+SIN_CAMBIOS = "sin cambios"
+
+
+def sha256(ruta: Path) -> str:
+    h = hashlib.sha256()
+    with open(ruta, "rb") as f:
+        for bloque in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(bloque)
+    return h.hexdigest()
 
 
 def _sesion() -> requests.Session:
@@ -94,8 +112,11 @@ def respaldar(destino: Path) -> Path:
     return nuevo
 
 
-def descargar_archivo(url: str, destino: Path) -> tuple[bool, str | None]:
-    """Descarga atómica con reintentos. (ok, motivo_error)."""
+def descargar_archivo(url: str, destino: Path,
+                      solo_si_cambia: bool = False) -> tuple[bool, str | None]:
+    """Descarga atómica con reintentos. (ok, motivo_error).
+    Con `solo_si_cambia`, si el contenido es idéntico al archivo existente
+    se descarta la copia nueva y se devuelve (True, SIN_CAMBIOS)."""
     destino.parent.mkdir(parents=True, exist_ok=True)
     parcial = destino.with_name(destino.name + ".part")
     motivo = "reintentos agotados"
@@ -109,10 +130,12 @@ def descargar_archivo(url: str, destino: Path) -> tuple[bool, str | None]:
                     return False, f"Content-Type inesperado: {ct}"
                 esperado = _esperado(r)
                 escritos = 0
+                h = hashlib.sha256()
                 with open(parcial, "wb") as f:
                     for chunk in r.iter_content(chunk_size=64 * 1024):
                         if chunk:
                             f.write(chunk)
+                            h.update(chunk)
                             escritos += len(chunk)
 
             if esperado is not None and escritos != esperado:
@@ -120,6 +143,10 @@ def descargar_archivo(url: str, destino: Path) -> tuple[bool, str | None]:
             elif escritos < TAMANO_MINIMO:
                 motivo = f"archivo muy pequeño ({escritos} bytes)"
             else:
+                if (solo_si_cambia and destino.exists()
+                        and h.hexdigest() == sha256(destino)):
+                    parcial.unlink()
+                    return True, SIN_CAMBIOS
                 if destino.exists():
                     anterior = respaldar(destino)
                     print(f"   ↳ versión anterior en {anterior.parent.name}/{anterior.name}")
@@ -149,7 +176,7 @@ def tamano_remoto(url: str) -> int | None:
 # Log
 # =====================================================
 class LogDescarga:
-    """{ruta: {ok, motivo_error, url, dataset, bytes, timestamp}}"""
+    """{ruta: {ok, motivo_error, url, dataset, bytes, sha256, timestamp}}"""
 
     def __init__(self, ruta: Path):
         self.ruta = ruta
@@ -161,6 +188,7 @@ class LogDescarga:
         self.datos[str(destino)] = {
             "ok": ok, "motivo_error": motivo, "url": url, "dataset": dataset,
             "bytes": destino.stat().st_size if ok else None,
+            "sha256": sha256(destino) if ok else None,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.guardar()
@@ -178,26 +206,49 @@ class LogDescarga:
 # =====================================================
 def ejecutar_tareas(tareas: list[tuple[Path, str, str]], log: LogDescarga,
                     base: Path, sobrescribir=False,
-                    revisar_tamano=False) -> dict[str, int]:
+                    revisar_tamano=False,
+                    revisar_contenido=False) -> dict[str, int]:
     """tareas = [(destino, url, titulo_dataset)].
 
     Se salta un archivo si ya existe, salvo `sobrescribir`. Con
     `revisar_tamano` se compara cada archivo existente con el
     Content-Length remoto y se vuelve a bajar si no coincide (archivos
-    cortados de antes del .part)."""
-    n = {"descargados": 0, "saltados": 0, "errores": 0, "reparados": 0}
+    cortados de antes del .part). Si el servidor no informa el tamaño,
+    el archivo se cuenta como "sin_tamano": NO quedó verificado. Con
+    `revisar_contenido` se baja de nuevo cada archivo existente y solo se
+    reemplaza (respaldando el anterior) si su SHA-256 cambió."""
+    n = {"descargados": 0, "saltados": 0, "errores": 0, "reparados": 0,
+         "sin_tamano": 0, "sin_cambios": 0, "cambiados": 0}
     total = len(tareas)
     print(f"\n📥 {total} archivos a procesar\n")
 
     for i, (destino, url, titulo) in enumerate(tareas, start=1):
         rel = destino.relative_to(base)
-        if destino.exists() and not sobrescribir:
+        existe = destino.exists() and not sobrescribir
+        if existe and revisar_contenido:
+            ok, motivo = descargar_archivo(url, destino, solo_si_cambia=True)
+            if ok and motivo == SIN_CAMBIOS:
+                n["sin_cambios"] += 1
+            elif ok:
+                n["cambiados"] += 1
+                print(f"[{i}/{total}] {rel}  ⚠ contenido distinto al local: "
+                      f"reemplazado ({destino.stat().st_size:,} bytes)")
+                log.registrar(destino, ok, None, url, titulo)
+            else:
+                n["errores"] += 1
+                print(f"[{i}/{total}] {rel}  ❌ {motivo}")
+            time.sleep(HTTP["pausa_entre_descargas"])
+            continue
+        if existe:
             if not revisar_tamano:
                 n["saltados"] += 1
                 continue
             remoto = tamano_remoto(url)
             local = destino.stat().st_size
-            if remoto is None or remoto == local:
+            if remoto is None:
+                n["sin_tamano"] += 1
+                continue
+            if remoto == local:
                 n["saltados"] += 1
                 continue
             print(f"[{i}/{total}] {rel}  ⚠ local {local:,} ≠ remoto "
@@ -223,4 +274,11 @@ def imprimir_conteo(n: dict[str, int]) -> None:
     print(f"  ✅ Descargados:  {n['descargados']}"
           + (f"  (de ellos {n['reparados']} reparados)" if n["reparados"] else ""))
     print(f"  ⏭  Ya existían: {n['saltados']}")
+    if n.get("sin_tamano"):
+        print(f"  ?  Sin tamaño remoto (no verificados): {n['sin_tamano']}"
+              "  → usar --revisar-contenido")
+    if n.get("sin_cambios") or n.get("cambiados"):
+        print(f"  =  Contenido idéntico: {n['sin_cambios']}")
+        print(f"  ⚠  Contenido cambiado (anterior en _versiones/): "
+              f"{n['cambiados']}")
     print(f"  ❌ Errores:     {n['errores']}")

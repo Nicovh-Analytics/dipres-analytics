@@ -15,6 +15,7 @@ Al final: funciones comunes a los scripts de gráficos (lectura de reportes,
 eje de años, formatos) y el ejecutor.
 """
 
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -22,6 +23,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 
 from dipres.config import DIRS
+from dipres.hallazgos import Registro
 
 SALIDA = DIRS["docs"] / "graficos"
 
@@ -206,15 +208,30 @@ def titulo_caso(s) -> str:
 
 
 def ejecutar(graficos: dict, encabezado: str, ancho: int = 900) -> None:
-    """Genera cada gráfico de {nombre: función}; la función devuelve
-    (figura, alto) o None si faltan sus datos."""
+    """
+    Genera cada gráfico de {nombre: función}; la función devuelve (figura,
+    alto) o None si faltan sus datos. Registra un aviso por gráfico sin
+    datos o sin PNG (kaleido/Chrome ausente), para que se vea en run.py.
+    """
     print("=" * 78)
     print(f"  {encabezado}")
     print("=" * 78)
+    # El reporte toma el nombre del script que llama (22 o 23), sin "22_"
+    nombre_script = Path(sys.argv[0]).stem.split("_", 1)[-1]
+    reg = Registro(nombre_script, salida_dir=DIRS["reportes"], eco=False)
     for nombre, f in graficos.items():
         r = f()
         if r is None:
+            reg.warn("datos", f"{nombre}: sin datos, no se generó",
+                     patron="gráfico sin datos")
             continue
         fig, alto = r
-        for p in guardar(fig, nombre, ancho=ancho, alto=alto):
+        escritos = guardar(fig, nombre, ancho=ancho, alto=alto)
+        for p in escritos:
             print(f"  ✓ {p}")
+        if any(p.suffix == ".png" for p in escritos):
+            reg.ok("png", nombre)
+        else:
+            reg.warn("png", f"{nombre}: solo HTML, sin PNG",
+                     patron="PNG no generado (kaleido o Chrome)")
+    reg.emitir()

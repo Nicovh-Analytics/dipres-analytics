@@ -16,6 +16,8 @@ Uso:
     python pipeline/1_extraccion/02_descargar.py                    # pregunta antes de bajar
     python pipeline/1_extraccion/02_descargar.py --si               # sin preguntar
     python pipeline/1_extraccion/02_descargar.py --revisar-tamano   # re-baja archivos cortados
+    python pipeline/1_extraccion/02_descargar.py --revisar-contenido --si
+        # vuelve a bajar todo y compara SHA-256: detecta republicaciones
     python pipeline/1_extraccion/02_descargar.py --sobrescribir     # vuelve a bajar todo
 """
 
@@ -169,6 +171,8 @@ if __name__ == "__main__":
     ap.add_argument("--sobrescribir", action="store_true")
     ap.add_argument("--revisar-tamano", action="store_true",
                     help="comparar archivos existentes con el tamaño remoto")
+    ap.add_argument("--revisar-contenido", action="store_true",
+                    help="volver a bajar y comparar SHA-256 con el local")
     args = ap.parse_args()
 
     print("=" * 70)
@@ -191,7 +195,8 @@ if __name__ == "__main__":
         raise SystemExit("Cancelado, nada descargado.")
 
     n = ejecutar_tareas(tareas, LogDescarga(LOGS["descarga"]), DIRS["raw"],
-                        args.sobrescribir, args.revisar_tamano)
+                        args.sobrescribir, args.revisar_tamano,
+                        args.revisar_contenido)
 
     print(f"\n{'=' * 70}\nDESCARGA COMPLETA\n{'=' * 70}")
     imprimir_conteo(n)

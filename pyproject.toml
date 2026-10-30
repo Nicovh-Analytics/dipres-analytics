@@ -10,6 +10,7 @@ dependencies = [
     "plotly",
     "kaleido",
     "requests",
+    "matplotlib",
 ]
 
 [tool.setuptools]
