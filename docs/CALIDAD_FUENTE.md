@@ -1,7 +1,7 @@
 # Calidad de la fuente — datos de ejecución presupuestaria DIPRES
 
 > Hallazgos sobre los CSV que DIPRES publica en datos.gob.cl (ley y ejecución, 2017-01 → 2026-08)
-> y, desde la sección 13, sobre los Reportes Trimestrales de Deuda Bruta del Gobierno Central (PDF).
+> y, en la sección 13, sobre los Reportes Trimestrales de Deuda Bruta del Gobierno Central (PDF).
 > Cada caso indica la evidencia, cómo lo trata el pipeline y cómo reproducirlo.
 > Última revisión: 29-10-2026.
 
@@ -23,6 +23,7 @@
 | 11 | La ejecución por partida difiere de la de Contraloría | 2017-2025, líneas puntuales | `15b` las mide y las localiza por grupo de subtítulos; consulta Ley 20.285 pendiente |
 | 12 | Las operaciones de cambio suman como ingreso en pesos y restan en dólares | Subt. 11, ítem 03, todos los años | `18b` las excluye de las fuentes de financiamiento |
 | 13 | Reportes de deuda: columnas y datos que cambian entre ediciones | Ediciones 2016-2025 | `11c` lo detecta y no usa como base las tablas afectadas |
+| 14 | Ley a nivel programa: totales sin su detalle y un mes desfasado | 862 subtítulos (2024-2025); programa 2019-11 | `06` check 11 los lista; los totales se toman de la fila de subtítulo o del capítulo |
 
 ---
 
@@ -45,7 +46,7 @@ DIPRES publica cada nivel (nacional, partida, capítulo, programa) como archivo 
 
 - **Nacional − Σ partidas, 2018-03 y 2018-04:** la diferencia es idéntica en ambos meses, de 37,5 millones en personal y repartida en varios subtítulos. Es del orden de Barrancas, pero no calza exacto: no está confirmado.
 - **Partida 05 (Interior):** partida − Σ capítulos es de 450.382 en todo el período revisado. Sin explicar.
-- **Ley vigente capítulo vs programa:** 1.930 casos, de los cuales 745 son de 2019-11. Sin estudiar.
+- **Ley vigente capítulo vs programa:** 1.930 casos, de los cuales 745 son de 2019-11. Explicados en el §14: el programa de 2019-11 está desfasado y en varios meses de 2024-2025 el detalle no suma su total.
 
 **Implicancia para el análisis:** para series por ministerio se usa el archivo de partida, no la suma de capítulos. Los análisis de cierre usan diciembre, mes en que los casos confirmados ya están alineados.
 
@@ -213,3 +214,46 @@ Por eso el `11c` identifica cada bono internacional por moneda, año de emisión
 | Pesos | +5,0% a +14,8%; 2022: −10,7% | Hipótesis sin verificar: el subt. 14 registra lo recibido en caja, que supera el valor nominal cuando el bono se coloca sobre la par (tasas bajo el cupón, 2020-2021) y queda bajo él en el caso contrario (2022) |
 
 **Reproducir:** `python pipeline/4_analisis/11c_bonos_deuda.py` y `python pipeline/4_analisis/18c_cruce_bonos.py` (requieren los PDF en `raw/externo/deuda/` y los tipos de cambio de `pipeline/1_extraccion/04_tipos_cambio.py`).
+
+## 14. Ley a nivel programa: totales sin su detalle y un mes desfasado
+
+El archivo de ley a nivel programa trae, para cada subtítulo, una fila de total y su detalle por ítem y asignación. Hay dos problemas distintos.
+
+**El detalle no suma el total del mismo archivo (2024-2025).** En 862 de 337.999 subtítulos (0,26%), la suma del detalle difiere de la fila de total. Se concentran en pocos meses:
+
+| Mes | Subtítulos |
+|---|---:|
+| 2024-05 | 198 |
+| 2024-04 | 128 |
+| 2024-08 | 96 |
+| 2025-12 | 81 |
+| 2024-09 | 16 |
+| 2025-10 | 11 |
+
+El caso mayor es el Tesoro Público (50-01-01), subtítulo 01 Impuestos, en julio y agosto de 2024: el total es 58.466.361.390 y el detalle suma −52.079.223.377 (miles de $). Contra junio, faltan cinco asignaciones en pesos y los subtotales de los ítems 1, 2, 6 y 9:
+
+| Ítem.Asignación | Junio | Agosto |
+|---|---:|---|
+| 1.1 | 11.707.170.000 | no está |
+| 1.4 | 2.397.360.000 | no está |
+| 2.1 | 108.128.300.000 | no está |
+| 6.6 | 965.719.300 | no está |
+| 9.103 | −12.652.930.000 | no está |
+| **Total** | **110.545.584.767** | |
+
+Lo que falta es exactamente la diferencia. Las líneas faltan en el archivo de origen: `ley/2024/08/programa.csv` tiene 13.036 líneas de datos, se leen 13.036 filas y no se descarta ninguna. Lo que queda incluye asignaciones negativas grandes (2.2: −100.719.200.000; 9.102: −117.508.300.000), y por eso la suma da negativa. Sigue así en la versión publicada: el 29-10-2026 se volvieron a bajar los archivos de ley y ejecución (`02 --revisar-contenido`) y los 926 que se pudieron bajar son idénticos byte a byte (SHA-256) a los analizados; los otros 2 (ejecución de programa, 2017-02 y 2017-03) se cortaron en la descarga. La huella de cada archivo queda en `docs/manifiesto_datos.csv`.
+
+**El programa de noviembre de 2019 está desfasado.** Porcentaje de celdas (partida × capítulo × subtítulo, pesos, tolerancia 1) en que la suma del programa coincide con el capítulo:
+
+| Mes | Programa = capítulo del mismo mes | Capítulo vs mes anterior | Programa vs mes anterior |
+|---|---:|---:|---:|
+| 2019-09 | 94,8% | | |
+| 2019-10 | 95,2% | 95,4% | 95,9% |
+| 2019-11 | **63,7%** | 59,2% | 81,3% |
+| 2019-12 | 99,3% | 71,9% | 51,6% |
+
+En noviembre, el capítulo cambia en el 41% de las celdas y el programa solo en el 19%. En diciembre el programa recupera el resto y vuelve a coincidir. El capítulo de noviembre cuadra con la partida (no aparece en el check 7 partida vs capítulo), así que el desfasado es el programa: incorpora solo parte de las modificaciones de noviembre. El 95% de los meses normales no llega al 100% por la tolerancia estricta y por celdas sin contraparte; lo que importa es la comparación entre meses.
+
+**Implicancia:** en esos meses, el total de un subtítulo se toma de su fila de total o del archivo de capítulo, no de la suma del detalle. Un análisis por ítem o asignación de esos meses trabaja con un detalle incompleto o atrasado. Diciembre de 2025 es un mes de cierre afectado.
+
+**Reproducir:** `python pipeline/3_validacion/06_validar.py`. El check 11 deja la lista en `reports/ley_detalle_incompleto.csv`, y el check 7 (capítulo vs programa) muestra el caso de 2019-11.

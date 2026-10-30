@@ -1,6 +1,6 @@
 # Hoja de ruta — dipres-analytics
 
-> Revisión: 29-10-2026. Se actualiza al cerrar cada bloque, no a mitad.
+> Revisión: 29-10-2026 (bloque A cerrado). Se actualiza al cerrar cada bloque, no a mitad.
 
 ## 1. Objetivo (lo que define qué entra)
 
@@ -25,8 +25,8 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 
 | Script | Qué hace | Hallazgo | Tipo | Estado |
 |---|---|---|---|---|
-| 01–03 extracción | Descarga datos.gob.cl (ejecución y ley, 4 niveles) | — | S | OK |
-| 04_tipos_cambio | Dólar, euro y UF diarios (mindicador) | — | S | OK; dos `04` con el mismo número |
+| 02_descargar / 03_descargar_inv | Descarga datos.gob.cl (ley y ejecución, 4 niveles; inversión) | — | S | Revisión por SHA-256 (`--revisar-contenido`, `--solo`) |
+| 04_tipos_cambio | Dólar, euro y UF diarios (mindicador) | — | S | OK; el número se repite con `04_perfilar` (otra etapa): no se renumera |
 | 12 | Descarga normativa (LeyChile) | — | S | OK |
 | 13_extraer_imagenes_ley | Extrae las imágenes del art. 1 (base64 en el XML de LeyChile) | VAL-2 | S | Mantener; paso manual (OCR/lectura) |
 | 05_consolidar / 07_diccionario | Cruces ley × ejecución por nivel; diccionario | CAL | S | 05: 5 ⚠; 07 sin controles |
@@ -49,7 +49,6 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | 22 / 23 gráficos | Hallazgos / análisis | — | S | DEU-1 con rango viejo |
 | herramientas/mapa_flujo | Mapa de dependencias | — | S | OK |
 
-Falta listar `pipeline/1_extraccion/` para completar la primera fila.
 
 ## 3. Lectura honesta de la alineación
 
@@ -69,12 +68,15 @@ Falta listar `pipeline/1_extraccion/` para completar la primera fila.
 
 ## 4. Hoja de ruta
 
-### Bloque A — Cerrar deuda técnica (esta semana)
-1. Commit del A2 (controles) + 20 migrado.
-2. Decidir 11, 13 y 19: integrar o mover a `archivo/` (fuera de `run.py`).
-3. Renumerar el `04` duplicado.
-4. Agregar `matplotlib` al `pyproject.toml` (o pasar el gráfico del 20 a
-   plotly, si se usa en el README).
+### Bloque A — Cerrar deuda técnica ✓ (29-10-2026)
+1. ✓ Controles en todos los scripts de `pipeline/` (10, 20 y 06 reclasificado:
+   ❌ solo si no se lee o no reconcilia).
+2. ✓ 11 a `archivo/`; 13 y 19 se quedan como soporte y validación.
+3. ✓ El `04` repetido está en dos etapas distintas: no se renumera (los números
+   identifican el script dentro de su etapa; el 18d y los docs los citan).
+4. ✓ `matplotlib` en `pyproject.toml`.
+5. ✓ Hallazgo nuevo de la fuente al reclasificar el 06: CALIDAD_FUENTE §14
+   (ley de programa con detalle incompleto 2024-2025; programa 2019-11 desfasado).
 
 ### Bloque B — Publicable (hasta el checkpoint de fines de noviembre)
 1. Rehacer el gráfico DEU-1 con los rangos del 18d.
@@ -86,7 +88,9 @@ Falta listar `pipeline/1_extraccion/` para completar la primera fila.
 6. ~13-nov: incorporar las respuestas de CGR/DIPRES (las ya enviadas).
 
 ### Bloque C — Reproducibilidad (después de B, solo lo que afecte resultados)
-1. A3: `raw/externo/MANIFIESTO.csv` (URL, fecha, hash) + control.
+1. ✓ A3: `herramientas/manifiesto.py` → `docs/manifiesto_datos.csv` (1.429 archivos,
+   SHA-256) y `02 --revisar-contenido`. Falta: reanudar descargas cortadas
+   (ejecución de programa 2017-02 y 2017-03 sin verificar).
 2. B1: una sola fuente de tipo de cambio; `TOPE_AJUSTES` y `TOPE_PLURIANUAL`
    a `dominio`.
 3. B2: años de corte en config; encoding uniforme de CSV.
