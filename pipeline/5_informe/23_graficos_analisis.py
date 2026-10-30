@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from dipres.viz import (AQUA, AZUL, EJE, NARANJA, SUPERFICIE, ULTIMO_ANIO,
+from dipres.viz import (AQUA, AZUL, EJE, NARANJA, PERIODO, SUPERFICIE, ULTIMO_ANIO,
                         ejecutar, ejes_anio, leer, monto_mm, nota, num,
                         titulo)
 
@@ -89,7 +89,7 @@ def grafico_fin1() -> tuple[go.Figure, int] | None:
             f"La deuda neta financió entre el {num(deuda.min(), 0)}% y el "
             f"{num(deuda.max(), 0)}% de las fuentes de cada año",
             "Fuentes de financiamiento ejecutadas del Gobierno Central, en % del "
-            "total de cada año. Pesos y dólares, 2017-2025.<br>La deuda que paga "
+            f"total de cada año. Pesos y dólares, {PERIODO}.<br>La deuda que paga "
             f"vencimientos pasó del {num(refi.iloc[0], 0)}% en {f.index[0]} al "
             f"{num(refi.iloc[-1], 0)}% en {f.index[-1]}."),
         barmode="relative", bargap=0.3,

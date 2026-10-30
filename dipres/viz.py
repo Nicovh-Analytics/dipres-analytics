@@ -22,7 +22,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 
-from dipres.config import DIRS
+from dipres.config import DIRS, PRIMER_ANIO, ULTIMO_ANIO_CERRADO
 from dipres.hallazgos import Registro
 
 SALIDA = DIRS["docs"] / "graficos"
@@ -166,7 +166,8 @@ def guardar(fig: go.Figure, nombre: str, ancho: int = 1000,
 # =====================================================
 # Comunes a los scripts de gráficos (22 y 23)
 # =====================================================
-ULTIMO_ANIO = 2025              # último año cerrado que muestran los gráficos
+ULTIMO_ANIO = ULTIMO_ANIO_CERRADO   # último año cerrado que muestran los gráficos
+PERIODO = f"{PRIMER_ANIO}-{ULTIMO_ANIO}"   # para títulos y notas
 AZUL, NARANJA, AQUA = CATEGORICA[0], CATEGORICA[1], CATEGORICA[2]
 
 

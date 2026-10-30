@@ -28,7 +28,8 @@ from datetime import date
 
 import pandas as pd
 
-from dipres.config import DIRS
+from dipres.config import (ANIO_EN_CURSO, DIRS, PRIMER_ANIO,
+                           ULTIMO_ANIO_CERRADO)
 from dipres.hallazgos import Registro
 
 REP = DIRS["reportes"]
@@ -799,7 +800,7 @@ def bloque_analisis() -> list[Hallazgo]:
     except FileNotFoundError:
         return [pendiente("FIN-1", "Fuentes de financiamiento",
                           "correr 18b_financiamiento.py")]
-    f = f[f.anio <= 2025].set_index("anio")
+    f = f[f.anio <= ULTIMO_ANIO_CERRADO].set_index("anio")
     p = f.div(f.total_fuentes, axis=0) * 100
     dn, pv, tn = p.deuda_neta, p.paga_vencimientos, p.titulos_neto
     ahorro = tn[tn < -0.5]
@@ -1019,10 +1020,24 @@ def cuadre_ley_partidas() -> str:
             f"partida·subtítulo{detalle}")
 
 
+def cobertura_datos() -> str:
+    """Primer y último mes del dataset ("2017-01 a 2026-08"), leído del
+    consolidado nacional para que el texto no quede desactualizado."""
+    from dipres.dominio import MES_A_NUM
+    try:
+        d = pd.read_csv(DIRS["consolidado"] / "cruce_nacional.csv",
+                        usecols=["Año", "Mes"], encoding="utf-8-sig")
+    except FileNotFoundError:
+        return "cobertura no disponible"
+    p = d["Año"] * 100 + d["Mes"].map(MES_A_NUM)
+    a = lambda v: f"{v // 100}-{v % 100:02d}"
+    return f"{a(int(p.min()))} a {a(int(p.max()))}"
+
+
 ALCANCE_GENERAL = """\
 **Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno \
-Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de \
-las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, \
+Central publicadas por DIPRES en datos.gob.cl ({cobertura}), textos de \
+las leyes de presupuestos {primer}-{en_curso}, cifras del Informe de Finanzas Públicas, \
 el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), \
 los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025) y los \
 tipos de cambio del Banco Central.
@@ -1042,13 +1057,16 @@ respaldo legal."""
 
 
 def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
-    ls = ["# Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025",
+    ls = ["# Hallazgos — Presupuesto del Gobierno Central de Chile, "
+          f"{PRIMER_ANIO}-{ULTIMO_ANIO_CERRADO}",
           "",
           f"> Generado por `21_sintesis.py` el {date.today():%d-%m-%Y} desde "
           f"los reportes del pipeline. No editar a mano: las cifras se "
           f"regeneran.",
           "", "## Alcance", "",
-          ALCANCE_GENERAL.format(cuadre_ley=cuadre_ley_partidas()),
+          ALCANCE_GENERAL.format(cuadre_ley=cuadre_ley_partidas(),
+                                 cobertura=cobertura_datos(),
+                                 primer=PRIMER_ANIO, en_curso=ANIO_EN_CURSO),
           "", "## Resumen", ""]
     ls += ["| Código | Hallazgo | Solidez |", "|---|---|---|"]
     for _, hs in bloques:

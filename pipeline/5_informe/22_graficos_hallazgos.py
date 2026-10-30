@@ -26,7 +26,7 @@ import plotly.graph_objects as go
 
 from dipres.config import DIRS
 from dipres.viz import (AQUA, AZUL, DIVERGENTE, EJE, NARANJA, SUPERFICIE,
-                        TINTA, TINTA_2, TINTA_MUTED, ULTIMO_ANIO, ejecutar,
+                        TINTA, TINTA_2, TINTA_MUTED, ULTIMO_ANIO, PERIODO, ejecutar,
                         ejes_anio, leer, monto_mm, nota, num, pct_txt,
                         titulo, titulo_caso)
 
@@ -152,7 +152,7 @@ def grafico_val2() -> tuple[go.Figure, int] | None:
             "DIPRES vs Contraloría",
             "Devengado de gastos por partida: dataset de DIPRES menos IGFE de "
             "Contraloría, en % de la cifra de Contraloría.<br>Moneda nacional, "
-            "2017-2025."),
+            f"{PERIODO}."),
         margin=dict(l=10, r=150, t=115, b=110),
         xaxis=dict(side="top", showgrid=False, type="category",
                    tickmode="array", tickvals=x, tickfont=dict(color=TINTA)),
@@ -225,7 +225,7 @@ def grafico_ing1() -> tuple[go.Figure, int] | None:
             f"hasta {num(maximo, 0)}% en un año",
             "Error de la Ley de Presupuestos: (recaudado − ley inicial) / ley "
             "inicial. Positivo: se recaudó más de lo proyectado.<br>Moneda "
-            "nacional, 2017-2025."),
+            f"nacional, {PERIODO}."),
         showlegend=False, hovermode="closest",
         margin=dict(l=55, r=175, t=110, b=150))
     nota(fig, [
@@ -282,7 +282,7 @@ def grafico_mod1() -> tuple[go.Figure, int] | None:
             "El presupuesto de gastos se amplía todos los años, y se ejecuta "
             "casi todo lo ampliado",
             "Gastos del Gobierno Central sin aporte fiscal, moneda nacional, "
-            "2017-2025. Sobre cada año: crecimiento de la ley durante el año."),
+            f"{PERIODO}. Sobre cada año: crecimiento de la ley durante el año."),
         barmode="group", bargap=0.25, bargroupgap=0.08,
         legend=dict(orientation="h", x=0.5, xanchor="center", y=1.02,
                     yanchor="bottom", font=dict(size=11)),
@@ -344,7 +344,7 @@ def grafico_eje3(max_lineas: int = 15) -> tuple[go.Figure, int] | None:
         title=titulo(
             "Las mismas líneas concentran su gasto en diciembre, año tras año",
             "Mediana del % del gasto anual ejecutado en diciembre, líneas que "
-            "superan el 25% todos los años. Moneda nacional, 2017-2025."),
+            f"superan el 25% todos los años. Moneda nacional, {PERIODO}."),
         bargap=0.35, showlegend=False, margin=dict(l=10, r=75, t=120, b=115))
     lineas = ["Umbral: 25% del gasto del año en diciembre, tres veces un mes "
               f"parejo. Otras {n_algunos} líneas lo superan solo algunos años."]

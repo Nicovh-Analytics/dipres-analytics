@@ -95,7 +95,9 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
    (`04`); los valores a mano quedan como control (`TC_OBSERVADO_BDE`).
    `TOPE_AJUSTES` y `TOPE_PLURIANUAL` en `dominio`. Efecto: ING-5 se mueve
    1.305 millones (0,002%); el resto sin cambios.
-3. B2: años de corte en config; encoding uniforme de CSV.
+3. B2: ✓ años de corte en `config` (`PRIMER_ANIO`, `ANIO_EN_CURSO`,
+   `ULTIMO_ANIO_CERRADO`); el alcance de HALLAZGOS lee la cobertura del dato.
+   Pendiente: encoding uniforme de CSV.
 4. Cifra oficial de ingresos (IFP 4T) para más años en el 10; hoy solo 2024.
 5. C2 (opcional): `ENTRADAS`/`SALIDAS` declaradas por script.
 

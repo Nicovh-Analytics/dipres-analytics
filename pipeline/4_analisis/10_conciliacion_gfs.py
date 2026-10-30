@@ -32,14 +32,13 @@ Uso:
 
 import pandas as pd
 
-from dipres.config import DIRS
+from dipres.config import ANIO_EN_CURSO, DIRS
 from dipres.dominio import (AJUSTES_INGRESO_GFS, MES_A_NUM, SUBTITULOS_INGRESO,
                      desvio_tipo_cambio, es_ingreso_gfs, gfs_verificado,
                      nombre_subtitulo, tipo_cambio)
 from dipres.hallazgos import Registro
 from dipres.utils import leer_csv_robusto
 
-ANIO_EN_CURSO = 2026
 
 # Cifra oficial para contrastar (IFP 4T2024, en millones de pesos)
 REFERENCIA_OFICIAL = {2024: 67_283_221}

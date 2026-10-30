@@ -127,3 +127,7 @@ TOLERANCIAS = {
     "meses_pegados": 3,      # meses iguales para marcar "dato pegado"
     "ratio_merge": 1.05,     # dispara alerta de producto cartesiano
 }
+# Años de corte. Al incorporar un año nuevo se cambia solo acá.
+PRIMER_ANIO = 2017              # primer año con datos de ley y ejecución
+ANIO_EN_CURSO = 2026            # año con datos parciales: no entra en cierres
+ULTIMO_ANIO_CERRADO = ANIO_EN_CURSO - 1

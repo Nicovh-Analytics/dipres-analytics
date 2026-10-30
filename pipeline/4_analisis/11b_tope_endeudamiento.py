@@ -46,13 +46,12 @@ import re
 
 import pandas as pd
 
-from dipres.config import DIRS
+from dipres.config import ANIO_EN_CURSO, DIRS
 from dipres.dominio import (MES_A_NUM, NUM_A_MES, TC_OBSERVADO, TOPE_AJUSTES,
                             TOPE_PLURIANUAL, tipo_cambio)
 from dipres.hallazgos import Registro
 from dipres.utils import leer_csv_robusto
 
-ANIO_EN_CURSO = 2026
 PARTIDA_TESORO = 50
 SUB_ENDEUDAMIENTO = 14
 SUB_SERVICIO_DEUDA = 34
