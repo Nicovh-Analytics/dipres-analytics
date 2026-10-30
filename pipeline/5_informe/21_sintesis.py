@@ -379,12 +379,15 @@ def bloque_estructura() -> list[Hallazgo]:
 
     # EST-3 — cambio de práctica
     a = r.loc[r.index <= 2020]
-    b = r.loc[r.index >= 2022]
+    # Solo años cerrados, igual que el gráfico: el año en curso tiene datos
+    # parciales y sus cambios de mitad de año aún no ocurren
+    b = r.loc[(r.index >= 2022) & (r.index <= ULTIMO_ANIO_CERRADO)]
     if len(a) and len(b):
         pa = a.durante_el_año.sum() / max(a[ESTRUCTURALES].sum().sum(), 1) * 100
         pb = b.durante_el_año.sum() / max(b[ESTRUCTURALES].sum().sum(), 1) * 100
         out.append(Hallazgo(
-            "EST-3", "Las instituciones nuevas pasaron a crearse en enero",
+            "EST-3", "La mayoría de los cambios de instituciones pasó a "
+                     "ocurrir en enero",
             f"Entre {a.index.min()} y {a.index.max()}, el "
             f"{num(pa, 0)}% de las altas, bajas y traslados ocurrió durante el "
             f"año (por leyes o decretos posteriores a la Ley de Presupuestos). "
@@ -501,12 +504,49 @@ def bloque_calidad() -> list[Hallazgo]:
             f"Se han detectado {len(versiones)} archivos que DIPRES volvió a "
             f"publicar con cambios después de su primera descarga. La versión "
             f"anterior se conserva en _versiones/.",
-            "Tamaño del archivo en el servidor distinto del descargado "
-            "(02_descargar.py --revisar-tamano).",
+            "Contenido del archivo en el servidor distinto del descargado: "
+            "SHA-256 (02_descargar.py --revisar-contenido) o tamaño "
+            "(--revisar-tamano).",
             "raw/<tipo>/<año>/<mes>/_versiones/",
             "Solo desde que existe el historial de versiones (octubre 2026); "
             "correcciones anteriores no son visibles.",
             solidez="media"))
+
+    # CAL-4 — ley de programa con totales sin su detalle
+    try:
+        li = leer("ley_detalle_incompleto.csv")
+        meses = (li.groupby(["Año", "Mes"]).size().sort_values(ascending=False))
+        g = li.loc[li.faltante.abs().idxmax()]
+        out.append(Hallazgo(
+            "CAL-4", "La ley a nivel programa publica totales que su propio "
+                     "detalle no suma",
+            f"En {num(len(li))} subtítulos del archivo de ley por programa, la "
+            f"suma del detalle por ítem y asignación difiere de la fila de total "
+            f"del mismo archivo. Se concentran en "
+            + ", ".join(f"{m.lower()} {int(a)} ({n})"
+                        for (a, m), n in meses.head(4).items())
+            + f". El caso mayor: partida {int(g.Partida)}, capítulo "
+            f"{int(g.Capítulo)}, subtítulo {int(g.Subtítulo)}, "
+            f"{str(g.Mes).lower()} {int(g.Año)}: el total es "
+            f"{num(g.total / 1e3)} millones de $ y el detalle suma "
+            f"{num(g.detalle / 1e3)}; faltan las líneas que suman la "
+            f"diferencia. Además, el archivo por programa de noviembre 2019 "
+            f"trae solo parte de las modificaciones de ese mes (se alinea en "
+            f"diciembre).",
+            "Un archivo que publica un total y su detalle debe sumar lo mismo. "
+            "La lectura no descarta filas: las líneas faltan en el archivo de "
+            "origen, y al 29-10-2026 la versión publicada sigue igual "
+            "(comparación por SHA-256).",
+            "06_validar.py check 11 → ley_detalle_incompleto.csv; "
+            "docs/manifiesto_datos.csv",
+            "El total del subtítulo y los niveles capítulo y superiores no se "
+            "ven afectados: el análisis los usa en vez de la suma del detalle. "
+            "Afecta a quien analice por ítem o asignación esos meses. Detalle "
+            "en CALIDAD_FUENTE.md §14.",
+            solidez="alta"))
+    except FileNotFoundError:
+        out.append(pendiente("CAL-4", "Ley de programa incompleta",
+                             "correr 06_validar.py"))
     return out
 
 
@@ -1056,6 +1096,29 @@ excedibles, el destino de cada operación de deuda. Por eso ningún hallazgo con
 respaldo legal."""
 
 
+# Gráfico de cada hallazgo (22_graficos_hallazgos.py / 23_graficos_analisis.py),
+# relativo a docs/. Se incluye solo si el PNG existe: run.py corre el 21 antes
+# que los gráficos, así que en una corrida desde cero aparecen en la segunda.
+GRAFICOS = {
+    "ING-1": ("ing1_perimetro", "Error de proyección de ingresos"),
+    "MOD-1": ("mod1_eje1_presupuesto", "Ley inicial, vigente y ejecutado"),
+    "EJE-3": ("eje3_diciembre", "Concentración del gasto en diciembre"),
+    "EST-3": ("est3_creaciones", "Cambios de servicios por año"),
+    "DEU-1": ("deu1_endeudamiento", "Uso estimado del tope del art. 3"),
+    "VAL-2": ("val2_dataset_vs_cgr", "Ejecución DIPRES vs Contraloría"),
+    "FIN-1": ("fin1_fuentes", "Fuentes de financiamiento"),
+}
+
+
+def imagen(codigo: str) -> list[str]:
+    if codigo not in GRAFICOS:
+        return []
+    nombre, alt = GRAFICOS[codigo]
+    if not (SALIDA.parent / "graficos" / f"{nombre}.png").exists():
+        return []
+    return [f"![{alt}](graficos/{nombre}.png)", ""]
+
+
 def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
     ls = ["# Hallazgos — Presupuesto del Gobierno Central de Chile, "
           f"{PRIMER_ANIO}-{ULTIMO_ANIO_CERRADO}",
@@ -1078,6 +1141,7 @@ def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
             if h.pendiente:
                 ls.append(f"_{h.condicion}_")
                 continue
+            ls += imagen(h.codigo)
             ls += [f"**Condición.** {h.condicion}", "",
                    f"**Criterio.** {h.criterio}", "",
                    f"**Evidencia.** `{h.evidencia}`", "",

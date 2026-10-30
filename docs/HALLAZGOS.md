@@ -29,10 +29,11 @@
 | DEU-1 | El endeudamiento estimado cabe en las autorizaciones legales, con varios años en el límite | media |
 | EST-1 | Cada año cambia entre el 1% y el 10% de los servicios | alta |
 | EST-2 | La Nueva Educación Pública se ve año a año en el presupuesto | alta |
-| EST-3 | Las instituciones nuevas pasaron a crearse en enero | media |
+| EST-3 | La mayoría de los cambios de instituciones pasó a ocurrir en enero | media |
 | EST-4 | Los traslados a mitad de año dividen el presupuesto entre dos partidas, sin duplicarlo | alta |
 | CAL-1 | Los descuadres entre niveles de DIPRES se explican por instituciones creadas a mitad de año | alta |
 | CAL-2 | Los archivos de DIPRES requieren correcciones puntuales para leerse completos | alta |
+| CAL-4 | La ley a nivel programa publica totales que su propio detalle no suma | alta |
 | VAL-1 | El presupuesto publicado por DIPRES coincide con el de Contraloría | alta |
 | VAL-2 | La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas | media |
 | VAL-3 | La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado | alta |
@@ -41,6 +42,8 @@
 ## Ingresos: proyección y recaudación
 
 ### ING-1 · El sesgo de proyección de ingresos es un efecto de perímetro
+
+![Error de proyección de ingresos](graficos/ing1_perimetro.png)
 
 **Condición.** Si se suman los subtítulos 01-15 de ingresos, la ley subestima lo recaudado en 9 de 9 años (p = 0,004), con un error medio de +14,9%. Al excluir lo que no es ingreso en sentido económico (endeudamiento, venta de activos financieros, recuperación de préstamos, saldo de caja), el error medio baja a +3,7% y el sesgo deja de ser significativo (subestima 5 años y sobreestima 4, p = 1,000). Solo con las líneas que son pronóstico: +4,1%, p = 1,000. El sesgo desaparece, pero el error no: con el perímetro del FMI el error típico (promedio sin signo) es de 9,3%, con un máximo de +35% en 2022.
 
@@ -106,6 +109,8 @@
 
 ### MOD-1 · El presupuesto de gastos se amplía cada año durante su ejecución
 
+![Ley inicial, vigente y ejecutado](graficos/mod1_eje1_presupuesto.png)
+
 **Condición.** Entre 2017 y 2025, la ley vigente al cierre supera a la inicial en todos los años: mediana +17,5% neto, con un máximo de +61,4% en 2021. El neto esconde movimiento: sumando aumentos y rebajas por separado, la mediana del ajuste bruto es 30,1% de la ley inicial. Sin 2021, el rango neto es +9,9% a +28,2%.
 
 **Criterio.** Ley inicial contra ley vigente a diciembre, por partida y subtítulo, pesos, sin aporte fiscal (subt. 27-28, doble conteo).
@@ -146,6 +151,8 @@
 
 ### EJE-3 · Las compras de activos se concentran en diciembre todos los años
 
+![Concentración del gasto en diciembre](graficos/eje3_diciembre.png)
+
 **Condición.** 6 líneas de gasto concentran el 25% o más de su ejecución anual en diciembre en todos los años; 5 son adquisición de activos no financieros (subt. 29). Los casos más marcados: Poder Judicial (subt. 29, mediana 78% en diciembre); Ministerio de Salud (subt. 29, mediana 61% en diciembre); Ministerio de Vivienda y Urbanismo (subt. 29, mediana 57% en diciembre).
 
 **Criterio.** Gasto de diciembre ≥ 25% del ejecutado del año (3 veces lo de un mes parejo) y ≥ $1.000 millones.
@@ -165,6 +172,8 @@
 **Alcance.** Ejecutar sobre lo vigente solo es legal en gastos excedibles (art. 28 DL 1.263) o con ingresos propios; los datos no identifican esa base legal.
 
 ### DEU-1 · El endeudamiento estimado cabe en las autorizaciones legales, con varios años en el límite
+
+![Uso estimado del tope del art. 3](graficos/deu1_endeudamiento.png)
 
 **Condición.** Uso estimado del margen del art. 3 (entre paréntesis, base sobre el tope): dentro del tope aun con la cota alta: 2022 (64%), 2023 (98%), 2024-2025 (98%); dentro con las autorizaciones de leyes especiales (Ley 21.225 en 2020 y bolsa de la Ley 21.288 para 2020-2022): 2020 (109%), 2021 (133%); en el límite (la base o la cota alta superan el tope, pero no el tope ampliado con la autorización para bonos de reconocimiento): 2018 (100%), 2019 (102%); 2017 supera el tope ampliado por 93 millones de US$ (+0,8%), menos que el margen de error de la estimación.
 
@@ -198,9 +207,11 @@
 
 **Alcance.** Cuenta el mes en que el servicio aparece en el presupuesto, que puede diferir de su entrada en funciones.
 
-### EST-3 · Las instituciones nuevas pasaron a crearse en enero
+### EST-3 · La mayoría de los cambios de instituciones pasó a ocurrir en enero
 
-**Condición.** Entre 2018 y 2020, el 79% de las altas, bajas y traslados ocurrió durante el año (por leyes o decretos posteriores a la Ley de Presupuestos). Entre 2022 y 2026, solo el 9%: los cambios pasaron a entrar por la propia Ley de Presupuestos, en enero.
+![Cambios de servicios por año](graficos/est3_creaciones.png)
+
+**Condición.** Entre 2018 y 2020, el 79% de las altas, bajas y traslados ocurrió durante el año (por leyes o decretos posteriores a la Ley de Presupuestos). Entre 2022 y 2025, solo el 12%: los cambios pasaron a entrar por la propia Ley de Presupuestos, en enero.
 
 **Criterio.** Mes en que el capítulo aparece, desaparece o se traslada.
 
@@ -240,6 +251,16 @@
 
 **Alcance.** La regla del doble exacto es conservadora: líneas repetidas con nombres distintos se mantienen (código de asignación reutilizado en 2025). Detalle en CALIDAD_FUENTE.md.
 
+### CAL-4 · La ley a nivel programa publica totales que su propio detalle no suma
+
+**Condición.** En 862 subtítulos del archivo de ley por programa, la suma del detalle por ítem y asignación difiere de la fila de total del mismo archivo. Se concentran en mayo 2024 (198), abril 2024 (128), agosto 2024 (96), diciembre 2025 (81). El caso mayor: partida 50, capítulo 1, subtítulo 1, agosto 2024: el total es 58.466.361 millones de $ y el detalle suma -52.079.223; faltan las líneas que suman la diferencia. Además, el archivo por programa de noviembre 2019 trae solo parte de las modificaciones de ese mes (se alinea en diciembre).
+
+**Criterio.** Un archivo que publica un total y su detalle debe sumar lo mismo. La lectura no descarta filas: las líneas faltan en el archivo de origen, y al 29-10-2026 la versión publicada sigue igual (comparación por SHA-256).
+
+**Evidencia.** `06_validar.py check 11 → ley_detalle_incompleto.csv; docs/manifiesto_datos.csv`
+
+**Alcance.** El total del subtítulo y los niveles capítulo y superiores no se ven afectados: el análisis los usa en vez de la suma del detalle. Afecta a quien analice por ítem o asignación esos meses. Detalle en CALIDAD_FUENTE.md §14.
+
 ## Validación externa
 
 ### VAL-1 · El presupuesto publicado por DIPRES coincide con el de Contraloría
@@ -253,6 +274,8 @@
 **Alcance.** La CGR recibe los datos desde SIGFE, el mismo sistema de origen que DIPRES, pero los compila y valida por su cuenta. La prueba verifica la agregación que publica DIPRES, no el registro de cada servicio. Los tribunales, el CPLT, el INDH y la Defensoría de la Niñez figuran en el IGFE pero no como partida en datos.gob.cl.
 
 ### VAL-2 · La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas
+
+![Ejecución DIPRES vs Contraloría](graficos/val2_dataset_vs_cgr.png)
 
 **Condición.** El devengado por partida cuadra en 200 de 310 partida·año·moneda. En las diferencias (sin Gobiernos Regionales), el dataset informa menos que la CGR en 97 de 107 casos, y en 84 la diferencia es menor al 1% de la partida. De los 85 partida·año con diferencia que tienen desglose por subtítulo en el IGFE, en 74 el 80% o más se concentra en un solo grupo. Se repite en los mismos lugares: Ministerio de Defensa Nacional, inversiones (US$) (8 años); Ministerio de Salud, transferencias (7 años); Ministerio de Relaciones Exteriores, inversiones (7 años); Ministerio de Educación, transferencias (5 años). La propia CGR corrigió en informes posteriores el devengado de 17 partida·año (el mayor: Ministerio de Obras Públicas 2018, 133.994 millones de $); la comparación usa la cifra corregida.
 
@@ -279,6 +302,8 @@
 ## Análisis descriptivo (no son hallazgos de auditoría)
 
 ### FIN-1 · La deuda neta financió entre el 9% y el 19% de cada año
+
+![Fuentes de financiamiento](graficos/fin1_fuentes.png)
 
 **Condición.** De las fuentes de financiamiento ejecutadas de cada año, los ingresos (perímetro FMI) aportaron entre el 65% y el 83%. La deuda neta (endeudamiento menos amortizaciones del año) aportó entre el 9% (2023) y el 19% (2021). La deuda que solo paga vencimientos pasó del 2% en 2017 al 13% en 2025. En 2022 (-10%) el año ahorró en títulos y depósitos en vez de usarlos.
 
