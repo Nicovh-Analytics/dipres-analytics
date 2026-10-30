@@ -12,7 +12,8 @@ Gráficos:
   mod1_eje1_presupuesto MOD-1 / EJE-1: inicial → vigente → ejecutado
   eje3_diciembre        EJE-3: líneas que concentran su gasto en diciembre
   est3_creaciones       EST-1 / 3: cambios institucionales en enero vs en el año
-  deu1_endeudamiento    DEU-1: uso del tope de endeudamiento del art. 3
+  deu1_endeudamiento    DEU-1: uso estimado del tope del art. 3 con el
+                        detalle de cada bono (18d)
   val2_dataset_vs_cgr   VAL-2: dónde difiere la ejecución publicada de la
                         de Contraloría (partida × año)
 
@@ -409,71 +410,130 @@ def grafico_est3() -> tuple[go.Figure, int] | None:
 # =====================================================
 # DEU-1
 # =====================================================
-LECTURA = {
+LECTURA = {      # orden de la leyenda
     "DENTRO": ("Dentro del tope", AZUL),
-    "INDETERMINADO": ("Indeterminado", "#898781"),
-    "SOBRE ART.3, CABE EN LEY": ("Sobre el art. 3, cabe en la Ley 21.288", AQUA),
-    "SOBRE": ("Sobre el tope", "#e34948"),
+    "SOBRE ART.3, CABE EN LEY": ("Cabe en leyes especiales", AQUA),
+    "INDETERMINADO": ("Indeterminado", TINTA_MUTED),
+    "SOBRE": ("Sobre el tope ampliado", "#e34948"),
 }
+RANGO_LECTURA = {k: i for i, k in enumerate(LECTURA)}
+MARGEN_DEU = 2.0    # mismo criterio que 21_sintesis.py: un exceso menor es
+                    # menor que el error de la estimación
 
 
 def grafico_deu1() -> tuple[go.Figure, int] | None:
-    t = leer("tope_endeudamiento", "11b_tope_endeudamiento.py")
-    if t is None:
+    m = leer("margen_endeudamiento", "18d_margen_endeudamiento.py")
+    if m is None:
         return None
-    t = t[t["Año"] <= ULTIMO_ANIO].sort_values("Año")
-    x = t["Año"].astype(str)
+    m = m[m.tope.notna()].copy()
+    m["a0"] = m.ventana.astype(str).str[:4].astype(int)
+    m = m[m.a0 <= ULTIMO_ANIO].sort_values("a0").reset_index(drop=True)
+    pct = lambda col: m[col] / m.tope * 100
+    m["p_base"], m["p_alto"], m["p_amp"] = pct("base"), pct("alto"), pct("tope_ampliado")
+    x = list(range(len(m)))
+
     fig = go.Figure()
     fig.add_hline(y=100, line=dict(color=TINTA_MUTED, width=1, dash="dot"))
     fig.add_annotation(x=1, xref="paper", y=100, text="tope del<br>art. 3",
                        xanchor="left", xshift=6, align="left", showarrow=False,
                        font=dict(size=10, color=TINTA_MUTED))
-    # Rango: el endeudamiento real queda entre el neto y el bruto
-    for r in t.itertuples():
+    # Rango de la estimación: de la base (solo bonos) a la cota alta (+ créditos)
+    for i, r in zip(x, m.itertuples()):
+        # Como barra de error: línea fina con un remate en la cota alta
         fig.add_trace(go.Scatter(
-            x=[str(r.Año)] * 2, y=[r.uso_neto_pct, r.uso_bruto_pct],
-            mode="lines", line=dict(color="#c3c2b7", width=6),
+            x=[i, i], y=[r.p_base, r.p_alto], mode="lines+markers",
+            line=dict(color=TINTA_MUTED, width=1.5),
+            marker=dict(symbol=["line-ew", "line-ew"], size=[0, 10],
+                        line=dict(width=1.5, color=TINTA_MUTED)),
             hoverinfo="skip", showlegend=False))
+    # Tope ampliado con la autorización para bonos de reconocimiento
+    amp = m[m.reconocimiento > 0]
+    fig.add_trace(go.Scatter(
+        x=[x[k] for k in amp.index], y=amp.p_amp, mode="markers",
+        marker=dict(symbol="line-ew", size=22, line=dict(width=2, color=TINTA_2)),
+        name="Tope ampliado", hoverinfo="skip",
+        legendrank=10))
     vistos = set()
-    for r in t.itertuples():
+    for i, r in zip(x, m.itertuples()):
         etiqueta, color = LECTURA.get(r.lectura, (r.lectura, TINTA_2))
         fig.add_trace(go.Scatter(
-            x=[str(r.Año)], y=[r.uso_neto_pct], mode="markers",
-            marker=dict(size=11, color=color, line=dict(width=2, color=SUPERFICIE)),
+            x=[i], y=[r.p_base], mode="markers",
+            marker=dict(size=9, color=color, line=dict(width=1.5, color=SUPERFICIE)),
             name=etiqueta, legendgroup=etiqueta, showlegend=etiqueta not in vistos,
-            customdata=[[num(r.uso_bruto_pct, 0), num(r.tope_total / 1e6, 1)]],
-            hovertemplate=(f"<b>%{{x}}</b> · {etiqueta}<br>Uso neto: %{{y:.0f}}%"
-                           "<br>Uso bruto: %{customdata[0]}%<br>Tope: "
-                           "US$ %{customdata[1]} mil millones<extra></extra>")))
+            legendrank=RANGO_LECTURA.get(r.lectura, 9),
+            customdata=[[num(r.tope, 0), num(r.reconocimiento, 0), num(r.bonos, 0),
+                         num(r.prepagos, 0), num(r.mismo_anio, 0), num(r.base, 0),
+                         num(r.alto, 0), num(r.p_alto, 0)]],
+            hovertemplate=(
+                f"<b>{r.ventana}</b> · {etiqueta}<br>"
+                "Tope art. 3: %{customdata[0]}<br>"
+                "Bonos de reconocimiento: %{customdata[1]}<br>"
+                "Bonos emitidos: %{customdata[2]}<br>"
+                "− prepagos: %{customdata[3]}<br>"
+                "− emitidos y vencidos en el año: %{customdata[4]}<br>"
+                "= base: %{customdata[5]} (%{y:.0f}% del tope)<br>"
+                "Cota alta: %{customdata[6]} (%{customdata[7]}%)<br>"
+                "<i>Millones de US$</i><extra></extra>")))
         vistos.add(etiqueta)
-    ejes_anio(fig, t["Año"])
-    fig.update_yaxes(ticksuffix="%", rangemode="tozero",
-                     title=dict(text="Uso del tope", font=dict(size=11)))
-    sobre = [str(a) for a in t.loc[t.lectura == "SOBRE", "Año"]]
-    n_ind = int((t.lectura == "INDETERMINADO").sum())
-    principal = (f"El endeudamiento neto superó el tope en "
-                 f"{' y '.join([', '.join(sobre[:-1]), sobre[-1]] if len(sobre) > 1 else sobre)}"
-                 if sobre else "El endeudamiento neto no superó el tope")
-    if n_ind:
-        principal += f"; en {n_ind} años el dato no permite determinarlo"
+        # Etiqueta encima del tramo, para no montarse sobre el punto ni la raya
+        tope_tramo = max(r.p_base, r.p_alto,
+                         r.p_amp if r.reconocimiento > 0 else 0)
+        if r.lectura == "SOBRE":
+            exceso = (r.base / r.tope_ampliado - 1) * 100
+            texto = f"{pct_txt(exceso, 1)} sobre el<br>tope ampliado"
+        elif "CABE" in str(r.lectura):
+            texto = ("Ley 21.225 y<br>bolsa Ley 21.288" if "2020" in str(r.ventana)
+                     else "bolsa<br>Ley 21.288")
+        else:
+            texto = None
+        if texto:
+            fig.add_annotation(x=i, y=tope_tramo, text=texto, yanchor="bottom",
+                               yshift=10, showarrow=False, align="center",
+                               font=dict(size=10, color=TINTA_2))
+
+    fig.update_xaxes(type="linear", tickmode="array", tickvals=x,
+                     ticktext=list(m.ventana.astype(str)), showgrid=False,
+                     tickfont=dict(color=TINTA), range=[-0.5, len(x) - 0.5])
+    # Eje acotado al rango de los datos: es un gráfico de puntos (la posición,
+    # no el largo, lleva el dato) y desde 0 el tramo base → cota alta, de 0,2
+    # a 3 puntos, no se ve
+    lo = np.floor((m.p_base.min() - 8) / 10) * 10
+    hi = np.ceil((max(m.p_alto.max(), m.p_amp.max()) + 18) / 10) * 10
+    fig.update_yaxes(ticksuffix="%", range=[lo, hi],
+                     title=dict(text="% del tope del art. 3", font=dict(size=11)))
+    brecha = m.p_alto - m.p_base
+    sobre = m[m.lectura == "SOBRE"]
+    exceso = (sobre.base / sobre.tope_ampliado - 1) * 100
+    mayor = list(sobre.ventana[exceso > MARGEN_DEU].astype(str))
+    principal = ("Con el detalle de cada bono, el endeudamiento estimado cabe en "
+                 "las autorizaciones legales" if not mayor else
+                 "El endeudamiento estimado excede las autorizaciones en "
+                 + ", ".join(mayor))
     fig.update_layout(
         title=titulo(
             principal,
-            "Endeudamiento del Tesoro como % del tope del art. 3 de cada Ley de "
-            "Presupuestos. Punto: neto de amortizaciones. Barra gris: hasta el "
-            "bruto."),
+            "Endeudamiento estimado como % del tope del art. 3 de cada Ley de "
+            "Presupuestos. Punto: base (bonos). Remate gris: cota alta "
+            "(+ créditos)."),
+        hovermode="closest",
         legend=dict(orientation="h", x=0.5, xanchor="center", y=1.02,
                     yanchor="bottom", font=dict(size=11)),
-        margin=dict(l=70, r=80, t=120, b=110))
+        margin=dict(l=70, r=80, t=125, b=150))
     nota(fig, [
-        "El cómputo legal requiere el detalle de cada emisión: el uso real está "
-        "entre el neto y el bruto. Indeterminado: el tope cae dentro de ese "
-        "rango.",
-        "2020-2021: la Ley 21.288 (Fondo COVID) autorizó US$ 8.000 millones "
-        "adicionales. Fuente: datos.gob.cl y leyes de presupuestos. Hallazgo "
-        "DEU-1.",
+        "Base: bonos emitidos a valor nominal − prepagos de deuda − bonos "
+        "emitidos y vencidos el mismo año (art. 3, inciso 4°). Cota alta: + "
+        "residuo en dólares del subt. 14",
+        f"(créditos con organismos), que agrega entre {num(brecha.min(), 1)} y "
+        f"{num(brecha.max(), 1)} puntos del tope. Eje vertical desde "
+        f"{num(lo, 0)}%.",
+        "Tope ampliado: + autorización aparte para bonos de reconocimiento "
+        "(inciso 5°), cuyo uso real no se publica. 2020: el tope incluye la Ley "
+        "21.225; 2020-2021: bolsa de la Ley 21.288.",
+        "2024-2025 juntos: los reportes de 2024 no permiten separar la emisión "
+        "local. Fuente: Reportes de Deuda Bruta (DIPRES), datos.gob.cl, leyes de "
+        "presupuestos. Hallazgo DEU-1.",
     ], bajo_eje=True)
-    return fig, 540
+    return fig, 620
 
 
 # =====================================================

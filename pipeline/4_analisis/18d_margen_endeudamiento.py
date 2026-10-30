@@ -87,13 +87,18 @@ def main() -> None:
         print("  · tope_endeudamiento.csv sin tope_reconocimiento: correr la "
               "versión actual del 11b")
         return
+    # ventana como texto en los dos archivos: "2017" y "2024-2025" conviven, y
+    # si un archivo solo tiene años sueltos pandas los lee como número y el
+    # cruce por ventana no encuentra nada (residuo en 0 sin aviso)
     emis = pd.read_csv(REP / "deuda_emisiones_usd.csv", encoding="utf-8-sig",
+                       dtype={"ventana": str},
                        parse_dates=["emision", "vencimiento"])
     # Emitidos y vencidos el mismo año: amortizados dentro del ejercicio
     emis["mismo_anio"] = emis.emision.dt.year == emis.vencimiento.dt.year
     pre = (pd.read_csv(REP / "deuda_prepagos.csv", encoding="utf-8-sig")
              .set_index("anio").prepago_musd)
-    cruce = pd.read_csv(REP / "deuda_cruce_subt14.csv", encoding="utf-8-sig")
+    cruce = pd.read_csv(REP / "deuda_cruce_subt14.csv", encoding="utf-8-sig",
+                        dtype={"ventana": str})
     resid = (cruce[cruce.seccion == "DOLARES"].set_index("ventana")
                   .diferencia.clip(lower=0) / MM)
 
@@ -106,6 +111,8 @@ def main() -> None:
         # de la ventana (o la ventana tal cual, si coincide)
         r_usd = (resid.get(v) if v in resid.index
                  else sum(resid.get(str(a), 0) for a in anios))
+        sin_cruce = v not in resid.index and not any(str(a) in resid.index
+                                                     for a in anios)
         filas.append({
             "ventana": v,
             "tope": t.tope_total.sum() / MM if tiene_tope else float("nan"),
@@ -113,7 +120,7 @@ def main() -> None:
             "bonos": g.emitido_musd.sum(),
             "mismo_anio": g.loc[g.mismo_anio, "emitido_musd"].sum(),
             "prepagos": sum(pre.get(a, 0) for a in anios),
-            "residuo_usd": r_usd,
+            "residuo_usd": r_usd, "sin_cruce": sin_cruce,
             "bruto_11b": t.bruto.sum() / MM, "neto_11b": t.neto.sum() / MM,
             "lectura_11b": " / ".join(t.lectura.dropna().astype(str)),
         })
@@ -156,6 +163,10 @@ def main() -> None:
     # Un "SOBRE" es un aviso, no un error de datos: es una estimación y el
     # cómputo oficial se pidió por Ley 20.285
     reg = Registro("margen_endeudamiento", salida_dir=REP, eco=False)
+    for r in d[d.sin_cruce].itertuples():
+        reg.error("cruce", f"{r.ventana}: sin fila en deuda_cruce_subt14.csv; "
+                  "la cota alta queda igual a la base", anio=r.ventana,
+                  patron="ventana sin cruce con el subt. 14")
     for r in d.itertuples():
         msg = f"{r.ventana}: {r.lectura} (uso {r.uso_base_pct:.0f}% del tope)"
         if r.lectura == "SOBRE":

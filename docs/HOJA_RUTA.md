@@ -79,7 +79,7 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
    (ley de programa con detalle incompleto 2024-2025; programa 2019-11 desfasado).
 
 ### Bloque B — Publicable (hasta el checkpoint de fines de noviembre)
-1. Rehacer el gráfico DEU-1 con los rangos del 18d.
+1. ✓ Gráfico DEU-1 rehecho con el 18d (base, cota alta y tope ampliado por ventana).
 2. Ajustes de diseño de MOD-1, EJE-3, EST-3.
 3. Insertar los gráficos en README y HALLAZGOS.
 4. Revisión del usuario de los textos ING-2, DEU-1 y VAL-3.
