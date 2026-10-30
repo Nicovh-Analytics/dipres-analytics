@@ -42,6 +42,33 @@ FUENTE = 'system-ui, -apple-system, "Segoe UI", sans-serif'
 CATEGORICA = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
               "#e87ba4", "#008300", "#6250d6", "#e34948"]
 
+# ── Sistema tonal de los gráficos ────────────────────
+# Una sola familia de azules para lo que se compara (pasos de una misma
+# rampa, validados como ordinales: un tono, claridad monótona, el paso más
+# claro sobre 2:1 contra la superficie), grises para el contexto y rojo
+# solo para lo que se sale de una regla. La categórica de arriba queda
+# para gráficos que de verdad necesiten tonos distintos.
+AZULES = {100: "#cde2fb", 150: "#b7d3f6", 200: "#9ec5f4", 250: "#86b6ef",
+          300: "#6da7ec", 350: "#5598e7", 400: "#3987e5", 450: "#2a78d6",
+          500: "#256abf", 550: "#1c5cab", 600: "#184f95", 650: "#104281",
+          700: "#0d366b"}
+GRISES = ["#d9d8d1", "#bdbcb4", "#9a998f", "#77766f"]   # contexto, claro → oscuro
+ROJO, ROJO_OSCURO, ROJO_CLARO = "#e34948", "#a8262a", "#f4b4b0"
+
+
+def degrade(valores, vmin: float, vmax: float, desde: int = 250,
+            hasta: int = 650) -> list[str]:
+    """Color de cada valor en la rampa de azules (de `desde` a `hasta`):
+    degradé por magnitud. Usa los pasos de la rampa, no colores
+    interpolados, para quedar dentro de lo validado."""
+    pasos = [k for k in AZULES if desde <= k <= hasta]
+    out = []
+    for v in valores:
+        t = 0.0 if vmax == vmin else min(max((v - vmin) / (vmax - vmin), 0), 1)
+        out.append(AZULES[pasos[round(t * (len(pasos) - 1))]])
+    return out
+
+
 # Divergente: rojo (negativo) ↔ gris ↔ azul (positivo), tres pasos por brazo
 DIVERGENTE = [
     [0.00, "#a8262a"], [0.25, "#e34948"], [0.42, "#f4b4b0"],

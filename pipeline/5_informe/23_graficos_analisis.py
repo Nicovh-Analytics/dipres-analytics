@@ -17,12 +17,10 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from dipres.viz import (AQUA, AZUL, EJE, NARANJA, PERIODO, SUPERFICIE, ULTIMO_ANIO,
+from dipres.viz import (AZULES, EJE, GRISES, PERIODO, SUPERFICIE, ULTIMO_ANIO,
                         ejecutar, ejes_anio, leer, monto_mm, nota, num,
                         titulo)
 
-NARANJA_CLARO = "#f5b393"
-AMARILLO, AMARILLO_CLARO = "#eda100", "#f6d58a"
 
 
 # =====================================================
@@ -34,12 +32,13 @@ AMARILLO, AMARILLO_CLARO = "#eda100", "#f6d58a"
 TITULOS_USO = "Uso neto de títulos y depósitos"
 TITULOS_AHORRO = "Ahorro neto en títulos y depósitos"
 CAPAS_FIN = [
-    ("ingresos_fmi", "Ingresos (perímetro FMI)", AZUL),
-    ("otras", "Venta de activos y recuperación de préstamos", AQUA),
-    ("titulos_uso", TITULOS_USO, AMARILLO),
-    ("paga_vencimientos", "Deuda que paga vencimientos", NARANJA_CLARO),
-    ("deuda_neta", "Deuda neta", NARANJA),
-    ("titulos_ahorro", TITULOS_AHORRO, AMARILLO_CLARO),
+    # Contexto en grises; la deuda, que es el mensaje, en dos pasos de azul
+    ("ingresos_fmi", "Ingresos (perímetro FMI)", GRISES[0]),
+    ("otras", "Venta de activos y recuperación de préstamos", GRISES[1]),
+    ("titulos_uso", TITULOS_USO, GRISES[2]),
+    ("paga_vencimientos", "Deuda que paga vencimientos", AZULES[250]),
+    ("deuda_neta", "Deuda neta", AZULES[600]),
+    ("titulos_ahorro", TITULOS_AHORRO, GRISES[2]),
 ]
 
 
@@ -66,6 +65,10 @@ def grafico_fin1() -> tuple[go.Figure, int] | None:
             x=x, y=pct[col], name=etiqueta, marker_color=color,
             legendrank=rango,
             marker_line=dict(width=1, color=SUPERFICIE),
+            # El ahorro comparte color con el uso (son títulos): lo distingue
+            # el rayado, además de quedar bajo 0
+            marker_pattern=dict(shape="/" if col == "titulos_ahorro" else "",
+                                fgcolor=SUPERFICIE, solidity=0.35),
             # Solo la deuda neta lleva etiqueta: es el mensaje
             text=[f"<b>{num(v, 0)}%</b>" for v in pct[col]] if es_neta else None,
             textposition="inside", insidetextanchor="middle",

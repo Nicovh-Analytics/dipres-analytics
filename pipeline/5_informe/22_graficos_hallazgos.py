@@ -25,11 +25,11 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from dipres.config import DIRS
-from dipres.viz import (AQUA, AZUL, DIVERGENTE, EJE, NARANJA, SUPERFICIE,
+from dipres.config import ANIO_EN_CURSO, DIRS
+from dipres.viz import (AZUL, AZULES, DIVERGENTE, EJE, GRISES, ROJO, SUPERFICIE,
                         TINTA, TINTA_2, TINTA_MUTED, ULTIMO_ANIO, PERIODO, ejecutar,
                         ejes_anio, leer, monto_mm, nota, num, pct_txt,
-                        titulo, titulo_caso)
+                        titulo, titulo_caso, degrade)
 
 REP = DIRS["reportes"]
 COMPARABLES = ["cuadra", "difiere", "cuadra con otra partida"]
@@ -84,7 +84,11 @@ def grafico_val2() -> tuple[go.Figure, int] | None:
     rango = (d.assign(dif=~d.cuadra, mag=d.pct.abs())
              .groupby("partida").agg(n=("dif", "sum"), mag=("mag", "mean"))
              .sort_values(["n", "mag"], ascending=False))
-    filas = list(rango.index)
+    # Las partidas que cuadran todos los años no aportan al mensaje: van en
+    # la nota, no como filas grises
+    n_siempre = int((rango.n == 0).sum())
+    filas = list(rango.index[rango.n > 0])
+    d = d[d.partida.isin(filas)]
     anios = sorted(d.anio.unique())
 
     z = d.pivot(index="partida", columns="anio", values="pct").reindex(
@@ -166,6 +170,8 @@ def grafico_val2() -> tuple[go.Figure, int] | None:
         f"Incluida en las consultas por Ley 20.285.",
         "Gris: cuadra (±2 millones de pesos). –: sin registro, la partida aún "
         "no existía. Sin Gobiernos Regionales: la CGR usa otra fuente.",
+        f"Se muestran las partidas con alguna diferencia; las otras "
+        f"{n_siempre} cuadran todos los años.",
         "Fuente: datos.gob.cl (DIPRES) e Informe de la Gestión Financiera del "
         "Estado 2017-2025 (CGR).",
     ])
@@ -176,7 +182,7 @@ def grafico_val2() -> tuple[go.Figure, int] | None:
 # =====================================================
 # ING-1: error de proyección de ingresos
 # =====================================================
-GRIS_CONTEXTO = "#a3a29b"
+GRIS_CONTEXTO = GRISES[2]
 
 
 def grafico_ing1() -> tuple[go.Figure, int] | None:
@@ -187,7 +193,7 @@ def grafico_ing1() -> tuple[go.Figure, int] | None:
     fig = go.Figure()
     fig.add_hline(y=0, line=dict(color=EJE, width=1))
     pos = ejes_anio(fig, sorted(a.anio.unique()))
-    finales, errores_fmi = [], None
+    finales, errores_fmi, sesgo = [], None, {}
     # La suma de subtítulos va en gris: es el contexto, no el hallazgo
     for clave, etiqueta, color in [("ingenuo_01_15", "Suma de subtítulos 01-15",
                                     GRIS_CONTEXTO),
@@ -196,6 +202,7 @@ def grafico_ing1() -> tuple[go.Figure, int] | None:
         if d.empty:
             continue
         y = d.error_vs_inicial * 100
+        sesgo[clave] = y.mean()
         if clave == "ingreso_gfs":
             errores_fmi = y
         fig.add_trace(go.Scatter(
@@ -222,8 +229,10 @@ def grafico_ing1() -> tuple[go.Figure, int] | None:
     maximo = errores_fmi.abs().max() if errores_fmi is not None else 0
     fig.update_layout(
         title=titulo(
-            "Con el perímetro del FMI desaparece el sesgo, pero no el error: "
-            f"hasta {num(maximo, 0)}% en un año",
+            f"Perímetro FMI: el sesgo baja de "
+            f"{pct_txt(sesgo.get('ingenuo_01_15', float('nan')), 1)} a "
+            f"{pct_txt(sesgo.get('ingreso_gfs', float('nan')), 1)}, pero el error "
+            f"llega a {num(maximo, 0)}%",
             "Error de la Ley de Presupuestos: (recaudado − ley inicial) / ley "
             "inicial. Positivo: se recaudó más de lo proyectado.<br>Moneda "
             f"nacional, {PERIODO}."),
@@ -258,9 +267,10 @@ def grafico_mod1() -> tuple[go.Figure, int] | None:
          .sort_values("anio"))
     x = d.anio.astype(str)
     a_billones = lambda v: v / 1e9          # miles de pesos → billones
-    barras = [("inicial", "Ley inicial", "#c3c2b7"),
-              ("vigente", "Ley vigente al cierre", AZUL),
-              ("ejecutado", "Ejecutado", AQUA)]
+    # Tres momentos del mismo presupuesto: tres pasos de la misma rampa
+    barras = [("inicial", "Ley inicial", AZULES[250]),
+              ("vigente", "Ley vigente al cierre", AZULES[450]),
+              ("ejecutado", "Ejecutado", AZULES[650])]
     fig = go.Figure()
     for col, etiqueta, color in barras:
         fig.add_trace(go.Bar(
@@ -324,7 +334,7 @@ def grafico_eje3(max_lineas: int = 15) -> tuple[go.Figure, int] | None:
                      for p, s in zip(d.nombre_partida, d.subtitulo)]
     fig = go.Figure(go.Bar(
         x=d.pct_dic_mediana, y=d.etiqueta, orientation="h",
-        marker_color=[AZUL if t else "#c3c2b7" for t in d.todos],
+        marker_color=degrade(d.pct_dic_mediana, 0, 100),   # más oscuro, más concentrado
         text=[f"{a}/{n} años" for a, n in zip(d.anios_senal, d.de_anios)],
         textposition="outside", textfont=dict(size=10, color=TINTA_2),
         cliponaxis=False,
@@ -352,6 +362,9 @@ def grafico_eje3(max_lineas: int = 15) -> tuple[go.Figure, int] | None:
     if len(fuera):
         lineas.append(f"Se excluyen {len(fuera)} líneas con mediana sobre 100%: "
                       "el resto del año suma montos netos negativos.")
+    if (d.subtitulo == 30).any():
+        lineas.append("Subt. 30: adquisición de activos financieros (inversiones "
+                      "y depósitos), no gasto en bienes o servicios.")
     lineas.append("El dato no distingue gasto de fin de año de calendarios de "
                   "licitación o pagos contra entrega. Fuente: datos.gob.cl "
                   "(DIPRES). Hallazgo EJE-3.")
@@ -369,12 +382,19 @@ def grafico_est3() -> tuple[go.Figure, int] | None:
     col = "Año" if "Año" in e.columns else e.columns[0]
     e = e[e[col] > e[col].min()].sort_values(col)   # el 1er año no tiene base
     x = e[col].astype(str)
+    # El año en curso va atenuado: tiene datos parciales
+    opac = [0.45 if int(a) >= ANIO_EN_CURSO else 1 for a in e[col]]
+    desde = e[(e[col] >= 2022) & (e[col] < ANIO_EN_CURSO)]
+    pct_enero = (desde.en_enero.sum()
+                 / (desde.en_enero + desde["durante_el_año"]).sum() * 100)
     fig = go.Figure()
-    for c, etiqueta, color in [("en_enero", "En enero (Ley de Presupuestos)", AZUL),
+    for c, etiqueta, color in [("en_enero", "En enero (Ley de Presupuestos)",
+                                AZULES[550]),
                                ("durante_el_año", "Durante el año (leyes y decretos)",
-                                NARANJA)]:
+                                AZULES[250])]:
         fig.add_trace(go.Bar(
             x=x, y=e[c], name=etiqueta, marker_color=color,
+            marker_opacity=opac,
             marker_line=dict(width=2, color=SUPERFICIE),
             hovertemplate=f"<b>{etiqueta}</b> · %{{x}}<br>%{{y}} cambios"
                           "<extra></extra>"))
@@ -388,8 +408,8 @@ def grafico_est3() -> tuple[go.Figure, int] | None:
                                 font=dict(size=11)), rangemode="tozero")
     fig.update_layout(
         title=titulo(
-            "Desde 2022, los cambios de servicios ocurren en enero, con la Ley de "
-            "Presupuestos",
+            f"Desde 2022, el {num(pct_enero, 0)}% de los cambios de servicios "
+            "ocurre en enero, con la Ley de Presupuestos",
             "Altas, bajas y traslados de capítulos (servicios) por año y momento "
             "en que ocurren. Sobre cada barra: % de los servicios que cambió."),
         barmode="stack", bargap=0.35,
@@ -411,10 +431,10 @@ def grafico_est3() -> tuple[go.Figure, int] | None:
 # DEU-1
 # =====================================================
 LECTURA = {      # orden de la leyenda
-    "DENTRO": ("Dentro del tope", AZUL),
-    "SOBRE ART.3, CABE EN LEY": ("Cabe en leyes especiales", AQUA),
-    "INDETERMINADO": ("Indeterminado", TINTA_MUTED),
-    "SOBRE": ("Sobre el tope ampliado", "#e34948"),
+    "DENTRO": ("Dentro del tope", AZULES[550]),
+    "SOBRE ART.3, CABE EN LEY": ("Cabe en leyes especiales", AZULES[300]),
+    "INDETERMINADO": ("Indeterminado", GRISES[2]),
+    "SOBRE": ("Sobre el tope ampliado", ROJO),
 }
 RANGO_LECTURA = {k: i for i, k in enumerate(LECTURA)}
 MARGEN_DEU = 2.0    # mismo criterio que 21_sintesis.py: un exceso menor es
