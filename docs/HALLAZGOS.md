@@ -21,7 +21,7 @@
 | ING-5 | Los ingresos del dataset concilian con la cifra oficial | alta |
 | ING-6 | La proyección del dólar falla en una sola dirección | media |
 | MOD-1 | El presupuesto de gastos se amplía cada año durante su ejecución | alta |
-| MOD-2 | Los aumentos de gasto corriente en pesos caben en las excepciones del artículo 4 | media |
+| MOD-2 | Los aumentos de gasto corriente caben en las excepciones del artículo 4 | media |
 | EJE-1 | Se ejecuta casi todo lo autorizado, y una décima parte en diciembre | alta |
 | EJE-2 | La subejecución se repite en las mismas líneas | alta |
 | EJE-3 | Las compras de activos se concentran en diciembre todos los años | media |
@@ -119,15 +119,15 @@
 
 **Alcance.** Incluye leyes dictadas durante el año (reajuste, leyes de emergencia), que el dataset no distingue de las modificaciones por decreto.
 
-### MOD-2 · Los aumentos de gasto corriente en pesos caben en las excepciones del artículo 4
+### MOD-2 · Los aumentos de gasto corriente caben en las excepciones del artículo 4
 
-**Condición.** El artículo 4 de cada ley exige una ley para aumentar el gasto corriente. En pesos, 9 de 9 años se apegan o el exceso se explica por mayores saldos de caja y venta de activos financieros, que la ley exceptúa. En dólares, 0 años muestran aumentos sin excepción medible ().
+**Condición.** El artículo 4 de cada ley exige una ley para aumentar el gasto corriente. Con las excepciones que los datos permiten medir, se apegan o se explican 9 de 9 años en pesos y 9 de 9 años en dólares. En dólares, la mayor excepción es el programa Operaciones Complementarias del Tesoro (hasta 82 millones de US$ en un año); en Defensa, los aumentos se financian con operaciones de cambio y con ingresos propios, como muestran las planillas de decretos de DIPRES (Fuerza Aérea 2021, Armada 2021 y 2022).
 
-**Criterio.** Art. 4 inc. 1 de cada Ley de Presupuestos, por moneda (cada cuadro del art. 1). Excepciones medibles: Δ saldo inicial de caja (sin Tesoro) y Δ venta de activos financieros.
+**Criterio.** Art. 4 inc. 1 de cada Ley de Presupuestos, por moneda (cada cuadro del art. 1). Excepciones medibles del inc. 2: Δ saldo inicial de caja (sin Tesoro), venta de activos financieros e ingresos propios (subts. 07 y 08), sumados por partida, y Δ del programa Operaciones Complementarias (glosa 01).
 
-**Evidencia.** `16_modificaciones.py → modificaciones_art4.csv`
+**Evidencia.** `16_modificaciones.py → modificaciones_art4.csv; planillas de decretos por programa (dipres.gob.cl)`
 
-**Alcance.** Lo que no se explica con los datos puede tener respaldo en gastos excedibles o leyes del año, que el dataset no ve: por eso se informa como "requiere respaldo legal", no como incumplimiento.
+**Alcance.** La venta de activos se suma por partida y no como neto nacional: en dólares, las operaciones de cambio suman en quien compra los dólares y restan en el Tesoro, y el neto escondía la fuente que los decretos invocan. Los ingresos propios son un proxy: que una partida reciba más no prueba que cada aumento se financie con ellos (se verificó en las planillas de Defensa). Gastos excedibles y leyes del año no se ven en los datos: lo no explicado se informa como "requiere respaldo legal", no como incumplimiento.
 
 ### EJE-1 · Se ejecuta casi todo lo autorizado, y una décima parte en diciembre
 

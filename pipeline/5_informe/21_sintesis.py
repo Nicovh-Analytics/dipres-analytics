@@ -590,28 +590,52 @@ def bloque_ejecucion() -> list[Hallazgo]:
     # MOD-2 — artículo 4
     try:
         a4 = leer("modificaciones_art4.csv")
-        pes = a4[a4.moneda == "PESOS"]
-        usd = a4[(a4.moneda == "DOLARES")
-                 & (a4.estado_inc1 == "requiere respaldo legal")]
-        exp = (pes.estado_inc1 != "requiere respaldo legal").sum()
+        cerrados = a4[a4.anio <= ULTIMO_ANIO_CERRADO]
+        sin = cerrados[cerrados.estado_inc1 == "requiere respaldo legal"]
+
+        def por_moneda(mon: str) -> str:
+            m = cerrados[cerrados.moneda == mon]
+            ok = (m.estado_inc1 != "requiere respaldo legal").sum()
+            return f"{ok} de {len(m)} años"
+
+        usd = cerrados[cerrados.moneda == "DOLARES"]
+        oc = usd[usd.get("exc_operaciones_complementarias", 0) > 0]
+        detalle_sin = ("" if sin.empty else
+                       " Quedan sin excepción medible: " + ", ".join(
+                           f"{int(r.anio)} en {r.moneda.lower()} "
+                           f"({num(r.corriente_no_explicado / 1e3)} millones)"
+                           for r in sin.itertuples()) + ".")
         out.append(Hallazgo(
-            "MOD-2", "Los aumentos de gasto corriente en pesos caben en las "
-                     "excepciones del artículo 4",
+            "MOD-2", ("Los aumentos de gasto corriente caben en las excepciones "
+                      "del artículo 4" if sin.empty else
+                      "Algunos aumentos de gasto corriente no tienen excepción "
+                      "medible en el artículo 4"),
             f"El artículo 4 de cada ley exige una ley para aumentar el gasto "
-            f"corriente. En pesos, {exp} de {len(pes)} años se apegan o el "
-            f"exceso se explica por mayores saldos de caja y venta de activos "
-            f"financieros, que la ley exceptúa. En dólares, "
-            f"{len(usd)} años muestran aumentos sin excepción medible ("
-            + ", ".join(f"{int(r.anio)}: {num(r.corriente_no_explicado / 1e3)} "
-                        f"millones de US$" for r in usd.itertuples())
-            + ").",
+            f"corriente. Con las excepciones que los datos permiten medir, se "
+            f"apegan o se explican {por_moneda('PESOS')} en pesos y "
+            f"{por_moneda('DOLARES')} en dólares.{detalle_sin} En dólares, la "
+            f"mayor excepción es el programa Operaciones Complementarias del "
+            f"Tesoro"
+            + (f" (hasta {num(oc.exc_operaciones_complementarias.max() / 1e3)} "
+               f"millones de US$ en un año)" if len(oc) else "")
+            + "; en Defensa, los aumentos se financian con operaciones de "
+            "cambio y con ingresos propios, como muestran las planillas de "
+            "decretos de DIPRES (Fuerza Aérea 2021, Armada 2021 y 2022).",
             "Art. 4 inc. 1 de cada Ley de Presupuestos, por moneda (cada cuadro "
-            "del art. 1). Excepciones medibles: Δ saldo inicial de caja (sin "
-            "Tesoro) y Δ venta de activos financieros.",
-            "16_modificaciones.py → modificaciones_art4.csv",
-            "Lo que no se explica con los datos puede tener respaldo en gastos "
-            "excedibles o leyes del año, que el dataset no ve: por eso se "
-            "informa como \"requiere respaldo legal\", no como incumplimiento.",
+            "del art. 1). Excepciones medibles del inc. 2: Δ saldo inicial de "
+            "caja (sin Tesoro), venta de activos financieros e ingresos propios "
+            "(subts. 07 y 08), sumados por partida, y Δ del programa "
+            "Operaciones Complementarias (glosa 01).",
+            "16_modificaciones.py → modificaciones_art4.csv; planillas de "
+            "decretos por programa (dipres.gob.cl)",
+            "La venta de activos se suma por partida y no como neto nacional: en "
+            "dólares, las operaciones de cambio suman en quien compra los "
+            "dólares y restan en el Tesoro, y el neto escondía la fuente que los "
+            "decretos invocan. Los ingresos propios son un proxy: que una partida "
+            "reciba más no prueba que cada aumento se financie con ellos (se "
+            "verificó en las planillas de Defensa). Gastos excedibles y leyes "
+            "del año no se ven en los datos: lo no explicado se informa como "
+            "\"requiere respaldo legal\", no como incumplimiento.",
             solidez="media"))
     except FileNotFoundError:
         out.append(pendiente("MOD-2", "Artículo 4", "correr 16_modificaciones.py"))

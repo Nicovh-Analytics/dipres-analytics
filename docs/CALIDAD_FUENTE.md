@@ -24,6 +24,7 @@
 | 12 | Las operaciones de cambio suman como ingreso en pesos y restan en dólares | Subt. 11, ítem 03, todos los años | `18b` las excluye de las fuentes de financiamiento |
 | 13 | Reportes de deuda: columnas y datos que cambian entre ediciones | Ediciones 2016-2025 | `11c` lo detecta y no usa como base las tablas afectadas |
 | 14 | Ley a nivel programa: totales sin su detalle y un mes desfasado | 862 subtítulos (2024-2025); programa 2019-11 | `06` check 11 los lista; los totales se toman de la fila de subtítulo o del capítulo |
+| 15 | El artículo 4 no se puede probar con el dato nacional | Gasto corriente en dólares, 2021-2025 | `16` mide las excepciones por partida y por programa; verificado con planillas de decretos |
 
 ---
 
@@ -257,3 +258,19 @@ En noviembre, el capítulo cambia en el 41% de las celdas y el programa solo en 
 **Implicancia:** en esos meses, el total de un subtítulo se toma de su fila de total o del archivo de capítulo, no de la suma del detalle. Un análisis por ítem o asignación de esos meses trabaja con un detalle incompleto o atrasado. Diciembre de 2025 es un mes de cierre afectado.
 
 **Reproducir:** `python pipeline/3_validacion/06_validar.py`. El check 11 deja la lista en `reports/ley_detalle_incompleto.csv`, y el check 7 (capítulo vs programa) muestra el caso de 2019-11.
+
+## 15. El artículo 4 no se puede probar con el dato nacional
+
+El artículo 4 de cada Ley de Presupuestos limita el aumento del gasto corriente durante el año, con excepciones (inciso 2): mayores saldos de caja, venta de activos financieros, ingresos propios, el programa Operaciones Complementarias del Tesoro, entre otras. Medidas sobre el archivo nacional, como hacía el `16`, cinco años en dólares (2021-2025) mostraban aumentos sin excepción, de 4 a 87 millones de US$. Las tres causas estaban en la forma de medir, no en los decretos:
+
+| Excepción | Problema con el dato nacional | Cómo se mide ahora |
+|---|---|---|
+| Operaciones Complementarias (glosa 01) | El nacional no distingue programas | Δ del programa, en el archivo por programa (fila total de cada subtítulo) |
+| Venta de activos financieros | En dólares, las operaciones de cambio (11.03) suman en la partida que compra dólares y restan en el Tesoro: el neto nacional era negativo (2021: −2.172 miles US$) | Suma de los aumentos de cada partida |
+| Ingresos propios | No estaban medidos | Aumentos de los subts. 07 y 08 de cada partida, sin Tesoro (proxy) |
+
+Con las tres, ningún año queda sin excepción medible. Las planillas de decretos por programa que publica DIPRES confirman el financiamiento en los casos revisados: en 2021 la Fuerza Aérea sube el subt. 22 en 24.616 miles de US$, financiado con el subt. 11 por el mismo monto; en 2022 la Armada financia el subt. 24 con ingresos propios (8.208), venta de activos (7.085) y una rebaja del subt. 22.
+
+**Implicancia:** el dataset abierto no permite verificar una regla central de la Ley de Presupuestos sin bajar al nivel de programa y a los decretos, que se publican como PDF por programa, sin vínculo con los datos.
+
+**Reproducir:** `python pipeline/4_analisis/16_modificaciones.py` → `modificaciones_art4.csv`, columnas `exc_*`.
