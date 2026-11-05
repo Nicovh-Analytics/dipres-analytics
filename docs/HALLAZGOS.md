@@ -1,6 +1,6 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 30-10-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 04-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
@@ -121,7 +121,7 @@
 
 ### MOD-2 · Los aumentos de gasto corriente en pesos caben en las excepciones del artículo 4
 
-**Condición.** El artículo 4 de cada ley exige una ley para aumentar el gasto corriente. En pesos, 9 de 9 años se apegan o el exceso se explica por mayores saldos de caja y venta de activos financieros, que la ley exceptúa. En dólares, 5 años muestran aumentos sin excepción medible (2021: 21 millones de US$, 2022: 4 millones de US$, 2023: 87 millones de US$, 2024: 60 millones de US$, 2025: 37 millones de US$).
+**Condición.** El artículo 4 de cada ley exige una ley para aumentar el gasto corriente. En pesos, 9 de 9 años se apegan o el exceso se explica por mayores saldos de caja y venta de activos financieros, que la ley exceptúa. En dólares, 0 años muestran aumentos sin excepción medible ().
 
 **Criterio.** Art. 4 inc. 1 de cada Ley de Presupuestos, por moneda (cada cuadro del art. 1). Excepciones medibles: Δ saldo inicial de caja (sin Tesoro) y Δ venta de activos financieros.
 

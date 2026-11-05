@@ -32,6 +32,12 @@ Artículo 4 (texto 2017-2026, verificado en cada ley):
           saldos de caja (salvo Tesoro), venta de activos, fondos
           concursables o recuperación de anticipos.
 
+Excepciones medibles con los datos: mayores saldos iniciales de caja (sin
+Tesoro), venta de activos financieros e ingresos propios (aumentos de los
+subts. 07 y 08 de cada partida, sin Tesoro), y el aumento del programa Operaciones
+Complementarias del Tesoro (glosa 01, exceptuado expresamente en el inc. 2;
+se lee del archivo por programa, fila total de cada subtítulo).
+
 Lo que los datos NO pueden ver: leyes dictadas durante el año (reajuste,
 leyes COVID) y gastos excedibles. Por eso el resultado nunca es
 "incumple": es "se apega", "explicable por excepciones medibles" o
@@ -76,6 +82,8 @@ TIPO_POR_SUB = {15: "caja", 35: "caja", 11: "financiero", 30: "financiero",
 ART4_CORRIENTE = {21, 22, 23, 24, 26}
 ART4_CAPITAL = {29, 31, 33}
 ART4_MARGEN_CAPITAL = 0.10
+TESORO = 50
+OPERACIONES_COMPLEMENTARIAS = "OPERACIONES COMPLEMENTARIAS"
 
 
 # =====================================================
@@ -99,6 +107,32 @@ def cierre(nivel: str) -> pd.DataFrame:
                           "nombre_subtitulo") if c in df.columns]
     return (df.groupby(claves, as_index=False, dropna=False)
               [["ley_inicial", "ley_vigente"]].sum())
+
+
+def operaciones_complementarias() -> pd.DataFrame:
+    """Δ (vigente − inicial) al cierre de los gastos corrientes del inc. 1 en
+    el programa Operaciones Complementarias del Tesoro, por año y moneda. Se
+    identifica por nombre (el número de programa podría cambiar) y se usa la
+    fila total de cada subtítulo, que vale aunque el detalle esté incompleto
+    (CAL-4)."""
+    cols = {"Año", "Mes", "Moneda", "Partida", "Subtítulo", "Item",
+            "Nombre Programa", "ley_inicial", "ley_vigente", "origen"}
+    c = pd.read_csv(DIRS["consolidado"] / "cruce_programa.csv",
+                    encoding="utf-8-sig", usecols=lambda k: k in cols,
+                    low_memory=False)
+    c = c[(c["Partida"] == TESORO) & c["Item"].isna()
+          & c["Nombre Programa"].str.upper().str.contains(
+              OPERACIONES_COMPLEMENTARIAS, na=False)]
+    if "origen" in c.columns:
+        c = c[c["origen"] != "solo_ejecucion"]
+    c = c.assign(mes_num=c["Mes"].map(MES_A_NUM))
+    c = c[c.groupby("Año")["mes_num"].transform("max") == c["mes_num"]]
+    c = c[c["Subtítulo"].astype(int).isin(ART4_CORRIENTE | {25})]
+    c = c.assign(delta=c.ley_vigente - c.ley_inicial)
+    # El 25 (Íntegros) solo cuenta hasta 2020, igual que en prueba_art4
+    c = c[(c["Subtítulo"] != 25) | (c["Año"] <= 2020)]
+    return (c.groupby(["Año", "Moneda"]).delta.sum()
+              .rename_axis(["anio", "moneda"]).reset_index())
 
 
 # =====================================================
@@ -171,12 +205,23 @@ def recurrencia(d: pd.DataFrame) -> pd.DataFrame:
 # =====================================================
 # 4. Artículo 4
 # =====================================================
-def prueba_art4(n: pd.DataFrame, p: pd.DataFrame) -> pd.DataFrame:
+def prueba_art4(n: pd.DataFrame, p: pd.DataFrame,
+                oc: pd.DataFrame) -> pd.DataFrame:
     """
     A nivel nacional (valor neto = consolidado, como el art. 1). Las
     excepciones medibles son proxies desde los propios datos:
       caja   Δ sub 15 por partida, sin Tesoro (la ley excluye su caja)
-      vaf    Δ sub 11 venta de activos financieros (nacional)
+      vaf    Δ sub 11 venta de activos financieros: suma de los aumentos de
+             cada partida. No el neto nacional: en dólares, las operaciones
+             de cambio (11.03) suman en la partida que compra dólares y restan
+             en el Tesoro, y el neto escondía la fuente que los decretos
+             invocan (p. ej. FACh 2021: subt. 22 +24.616 miles US$ financiado
+             con 11.03 por el mismo monto, planilla de decretos de DIPRES)
+      oc     Δ gasto corriente de Operaciones Complementarias (Tesoro)
+      propios  aumentos de ingresos de operación (07) y otros ingresos
+             corrientes (08) de cada partida, sin Tesoro: los ingresos
+             propios del inc. 2 (p. ej. Armada 2022: subt. 24 financiado en
+             parte con 8.208 miles US$ del subt. 08, planilla de decretos)
       va     Δ sub 10 venta de activos no financieros (solo inc. 3)
     Ingresos propios, excedibles y leyes del año no son medibles aquí.
     """
@@ -193,16 +238,21 @@ def prueba_art4(n: pd.DataFrame, p: pd.DataFrame) -> pd.DataFrame:
 
         ini_a, d_a = delta(corriente)
         ini_b, d_b = delta(ART4_CAPITAL)
-        _, d_vaf = delta({11})
+        p11 = p[(p.anio == anio) & (p.moneda == mon) & (p.subtitulo == 11)]
+        d_vaf = float((p11.ley_vigente - p11.ley_inicial).clip(lower=0).sum())
         _, d_va = delta({10})
         pp = p[(p.anio == anio) & (p.moneda == mon) & (p.subtitulo == 15)
                & (p.partida != 50)]
         d_caja = float((pp.ley_vigente - pp.ley_inicial).sum())
+        d_oc = float(oc.loc[(oc.anio == anio) & (oc.moneda == mon), "delta"].sum())
+        pr = p[(p.anio == anio) & (p.moneda == mon) & p.subtitulo.isin([7, 8])
+               & (p.partida != TESORO)]
+        d_prop = float((pr.ley_vigente - pr.ley_inicial).clip(lower=0).sum())
 
         exceso_a = max(0.0, d_a)
         exceso_b = max(0.0, d_b - ART4_MARGEN_CAPITAL * ini_b)
         # Excepciones: solo cuentan los aumentos de esas fuentes
-        exc = max(0.0, d_caja) + max(0.0, d_vaf)
+        exc = max(0.0, d_caja) + max(0.0, d_vaf) + max(0.0, d_oc) + d_prop
         exc_b = exc + max(0.0, d_va) + max(0.0, -d_a)  # + reasignación desde inc. 1
         no_expl_a = max(0.0, exceso_a - exc)
         no_expl_b = max(0.0, exceso_b - exc_b)
@@ -222,6 +272,8 @@ def prueba_art4(n: pd.DataFrame, p: pd.DataFrame) -> pd.DataFrame:
             "capital_pct": 100 * d_b / ini_b if ini_b else np.nan,
             "exc_caja_sin_tesoro": d_caja, "exc_venta_act_financieros": d_vaf,
             "exc_venta_act_no_financieros": d_va,
+            "exc_operaciones_complementarias": d_oc,
+            "exc_ingresos_propios": d_prop,
             "corriente_exceso": exceso_a, "capital_exceso": exceso_b,
             "excepciones_inc1": exc, "excepciones_inc3": exc_b,
             "corriente_no_explicado": no_expl_a,
@@ -257,7 +309,7 @@ if __name__ == "__main__":
     det = detalle(p, args.umbral_pct)
     res = resumen(det)
     rec = recurrencia(det)
-    art4 = prueba_art4(n, p)
+    art4 = prueba_art4(n, p, operaciones_complementarias())
 
     SALIDA.mkdir(parents=True, exist_ok=True)
     for nombre, df in (("detalle", det), ("resumen", res),
@@ -294,7 +346,9 @@ if __name__ == "__main__":
             print(f"        inc. 1: exceso {r.corriente_exceso / 1e3:>10,.0f} · "
                   f"excepciones medibles {r.excepciones_inc1 / 1e3:>10,.0f} "
                   f"(caja {r.exc_caja_sin_tesoro / 1e3:,.0f}, "
-                  f"venta act. fin. {r.exc_venta_act_financieros / 1e3:,.0f})")
+                  f"venta act. fin. {r.exc_venta_act_financieros / 1e3:,.0f}, "
+                  f"op. compl. {r.exc_operaciones_complementarias / 1e3:,.0f}, "
+                  f"propios {r.exc_ingresos_propios / 1e3:,.0f})")
         for inc, est, ne in (("inc. 1", r.estado_inc1, r.corriente_no_explicado),
                              ("inc. 3", r.estado_inc3, r.capital_no_explicado)):
             if est == "requiere respaldo legal":
