@@ -80,6 +80,8 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 
 ### Bloque B — Publicable (hasta el checkpoint de fines de noviembre)
 1. ✓ Gráfico DEU-1 rehecho con el 18d (base, cota alta y tope ampliado por ventana).
+1b. ✓ MOD-2 cerrado sin Transparencia: art. 4 sin avisos midiendo Operaciones
+   Complementarias, venta de activos por partida e ingresos propios (CALIDAD_FUENTE §15).
 2. Ajustes de diseño de MOD-1, EJE-3, EST-3.
 3. Insertar los gráficos en README y HALLAZGOS.
 4. Revisión del usuario de los textos ING-2, DEU-1 y VAL-3.
@@ -109,4 +111,5 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | Extrapresupuestario y FET | ¿El gasto de emergencia se volvió permanente? | Requiere datos que no se descargaron |
 | Contraste con informes CGR (paper) | ¿El método detecta lo que CGR detectó? | Proyecto aparte; checkpoint propio en noviembre |
 | Dashboard Streamlit | — | Presentación; después de publicar |
+| Caja por administración | ¿Cuánta caja generó o consumió cada administración entre traspasos? Variación estimada desde flujos (ingresos − gastos, incl. subts. 11, 14, 30, 34 y deuda flotante 34.07), contrastada con los Otros Activos del Tesoro (OATP) que publica DIPRES a los mismos cortes | Fuente nueva (Activos Consolidados del Tesoro) y tema en debate público: tomar después del bloque B, en formato condición-criterio, sin juicio |
 | Iniciativas de inversión (geográfico) | — | Fuente distinta |
