@@ -30,6 +30,7 @@ Uso:
 
 from collections import Counter
 
+import numpy as np
 import pandas as pd
 
 from dipres.config import DIRS, IO, TOLERANCIAS
@@ -509,10 +510,21 @@ def check_estructura_institucional():
 # =====================================================
 def check_cuadre_interno(cruce):
     """La ley a nivel programa publica el total de cada subtítulo y su
-    detalle. Si el detalle no suma el total en el MISMO archivo, faltan
-    líneas en la publicación (p. ej. Tesoro 50-01, subt. 01, agosto 2024:
-    faltan 1.1, 1.4, 2.1, 6.6 y 9.103, 110,5 billones). Es un hallazgo de
-    la fuente: la lectura no descarta filas (filas_descartadas = 0)."""
+    detalle por ítem (y a veces por asignación). Cuando el detalle no suma
+    el total del MISMO archivo, se separan dos casos:
+
+      ítems         la suma de los ítems no da el total del subtítulo: faltan
+                    o sobran líneas completas (p. ej. Tesoro 50-01-01, subt.
+                    01, agosto 2024: no están los ítems 01, 02, 06 y 09 ni sus
+                    asignaciones; 110,5 billones)
+      asignaciones  los ítems sí suman el total, pero las asignaciones de
+                    algún ítem no suman su ítem: el desglose es parcial (la
+                    ley aprueba por subtítulo; el detalle bajo el ítem es
+                    informativo)
+
+    Verificado contra los archivos crudos (05-11-2026): la consolidación
+    reproduce la diferencia en 113 de 114 meses; la excepción es enero 2020,
+    donde el consolidado ya descartó la línea duplicada de la fuente (CAL-2)."""
     separador("CHECK 11 — Cuadre interno de la ley (programa)")
     if cruce is None or "Item" not in cruce.columns:
         advertencia("Sin cruce_programa con Item: no se puede verificar")
@@ -522,34 +534,50 @@ def check_cuadre_interno(cruce):
     es_ley = (cruce["origen"] != "solo_ejecucion") if "origen" in cruce.columns \
         else pd.Series(True, index=cruce.index)
     hoja = hojas(cruce)
-    total_sub = es_ley & cruce["Item"].isna() & ~hoja
-    if "Asignación" in cruce.columns:
-        total_sub &= cruce["Asignación"].isna()
+    item_na = cruce["Item"].isna()
+    asig_na = (cruce["Asignación"].isna() if "Asignación" in cruce.columns
+               else pd.Series(True, index=cruce.index))
+    total_sub = es_ley & item_na & asig_na & ~hoja
     tot = cruce[total_sub].groupby(base)["ley_vigente"].sum()
     det = cruce[es_ley & hoja].groupby(base)["ley_vigente"].sum()
-    c = pd.DataFrame({"total": tot}).join(det.rename("detalle"), how="left")
-    c["detalle"] = c["detalle"].fillna(0)
+    # Suma por ítem: la fila del ítem si existe; si no, sus asignaciones
+    k = base + ["Item"]
+    fila_item = cruce[es_ley & ~item_na & asig_na].groupby(k)["ley_vigente"].sum()
+    suma_asig = cruce[es_ley & ~item_na & ~asig_na].groupby(k)["ley_vigente"].sum()
+    items = fila_item.combine_first(suma_asig).groupby(level=base).sum()
+    c = (pd.DataFrame({"total": tot})
+         .join(det.rename("detalle"), how="left")
+         .join(items.rename("suma_items"), how="left")
+         .fillna({"detalle": 0, "suma_items": 0}))
     c["faltante"] = c["total"] - c["detalle"]
-    malos = c[c["faltante"].abs() > TOLERANCIAS["monto"]]
+    c["faltante_items"] = c["total"] - c["suma_items"]
+    malos = c[c["faltante"].abs() > TOLERANCIAS["monto"]].copy()
     if malos.empty:
         ok(f"El detalle suma el total en los {len(c):,} subtítulos con detalle",
            control="cuadre_interno")
         return
-    pct = (1 - len(malos) / len(c)) * 100
-    meses = malos.groupby(level=["Año", "Mes"]).size().sort_values(ascending=False)
-    advertencia(f"{len(malos):,} de {len(c):,} subtítulos ({100 - pct:.2f}%) "
-                f"con detalle que no suma el total del mismo archivo · meses: "
-                + ", ".join(f"{int(a)}-{m}×{n}" for (a, m), n in meses.head(6).items()),
-                control="cuadre_interno",
-                patron="publicación con líneas de detalle faltantes")
-    mayores = malos.reindex(malos["faltante"].abs().sort_values(
-        ascending=False).index).head(3)
-    for k, row in mayores.iterrows():
-        ctx = " | ".join(f"{n}={v}" for n, v in zip(base, k))
-        print(f"    {ctx}: total={row.total:,.0f} vs detalle={row.detalle:,.0f}")
+    malos["tipo"] = np.where(malos["faltante_items"].abs() > TOLERANCIAS["monto"],
+                             "ítems", "asignaciones")
+    for tipo, patron in [("ítems", "líneas de ítem faltantes o sobrantes"),
+                         ("asignaciones", "desglose por asignación parcial")]:
+        m = malos[malos.tipo == tipo]
+        if m.empty:
+            ok(f"{tipo}: sin casos", control=f"cuadre_interno_{tipo}")
+            continue
+        meses = m.groupby(level=["Año", "Mes"]).size().sort_values(ascending=False)
+        advertencia(f"{tipo}: {len(m):,} de {len(c):,} subtítulos · meses: "
+                    + ", ".join(f"{int(a)}-{mm}×{n}"
+                                for (a, mm), n in meses.head(6).items()),
+                    control=f"cuadre_interno_{tipo}", patron=patron)
+        mayores = m.reindex(m["faltante"].abs().sort_values(
+            ascending=False).index).head(3)
+        for kk, row in mayores.iterrows():
+            ctx = " | ".join(f"{n}={v}" for n, v in zip(base, kk))
+            print(f"    {ctx}: total={row.total:,.0f} · ítems={row.suma_items:,.0f}"
+                  f" · detalle={row.detalle:,.0f}")
     malos.reset_index().to_csv(DIRS["reportes"] / "ley_detalle_incompleto.csv",
                                index=False, encoding="utf-8-sig")
-    print("    detalle: reports/ley_detalle_incompleto.csv")
+    print("    detalle: reports/ley_detalle_incompleto.csv (columna tipo)")
 
 
 # =====================================================

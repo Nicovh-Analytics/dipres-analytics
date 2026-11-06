@@ -515,34 +515,40 @@ def bloque_calidad() -> list[Hallazgo]:
     # CAL-4 — ley de programa con totales sin su detalle
     try:
         li = leer("ley_detalle_incompleto.csv")
-        meses = (li.groupby(["Año", "Mes"]).size().sort_values(ascending=False))
-        g = li.loc[li.faltante.abs().idxmax()]
+        if "tipo" not in li.columns:
+            raise FileNotFoundError     # versión anterior del 06
+        it = li[li.tipo == "ítems"]
+        asg = li[li.tipo == "asignaciones"]
+        meses = it.groupby(["Año", "Mes"]).size().sort_values(ascending=False)
+        g = it.loc[it.faltante.abs().idxmax()]
         out.append(Hallazgo(
             "CAL-4", "La ley a nivel programa publica totales que su propio "
                      "detalle no suma",
-            f"En {num(len(li))} subtítulos del archivo de ley por programa, la "
-            f"suma del detalle por ítem y asignación difiere de la fila de total "
-            f"del mismo archivo. Se concentran en "
+            f"En {num(len(it))} subtítulos del archivo de ley por programa, la "
+            f"suma de los ítems no da la fila de total del mismo archivo: faltan "
+            f"o sobran líneas completas. Se concentran en "
             + ", ".join(f"{m.lower()} {int(a)} ({n})"
                         for (a, m), n in meses.head(4).items())
             + f". El caso mayor: partida {int(g.Partida)}, capítulo "
-            f"{int(g.Capítulo)}, subtítulo {int(g.Subtítulo)}, "
-            f"{str(g.Mes).lower()} {int(g.Año)}: el total es "
-            f"{num(g.total / 1e3)} millones de $ y el detalle suma "
-            f"{num(g.detalle / 1e3)}; faltan las líneas que suman la "
-            f"diferencia. Además, el archivo por programa de noviembre 2019 "
-            f"trae solo parte de las modificaciones de ese mes (se alinea en "
-            f"diciembre).",
+            f"{int(g.Capítulo)}, programa {int(g.Programa)}, subtítulo "
+            f"{int(g.Subtítulo)}, {str(g.Mes).lower()} {int(g.Año)}: el total es "
+            f"{num(g.total / 1e3)} millones de $ y los ítems suman "
+            f"{num(g.suma_items / 1e3)}. Aparte, en {num(len(asg))} subtítulos "
+            f"los ítems sí suman el total, pero las asignaciones de algún ítem no "
+            f"suman su ítem (desglose parcial). Además, el archivo por programa "
+            f"de noviembre 2019 trae solo parte de las modificaciones de ese mes "
+            f"(se alinea en diciembre).",
             "Un archivo que publica un total y su detalle debe sumar lo mismo. "
-            "La lectura no descarta filas: las líneas faltan en el archivo de "
-            "origen, y al 29-10-2026 la versión publicada sigue igual "
-            "(comparación por SHA-256).",
-            "06_validar.py check 11 → ley_detalle_incompleto.csv; "
+            "Verificado contra los archivos crudos: el caso mayor de cada mes se "
+            "reproduce igual en 113 de 114 meses (la excepción, enero 2020, es la "
+            "línea duplicada que ya corrige el CAL-2), y al 29-10-2026 la versión "
+            "publicada sigue igual (comparación por SHA-256).",
+            "06_validar.py check 11 → ley_detalle_incompleto.csv (columna tipo); "
             "docs/manifiesto_datos.csv",
             "El total del subtítulo y los niveles capítulo y superiores no se "
             "ven afectados: el análisis los usa en vez de la suma del detalle. "
-            "Afecta a quien analice por ítem o asignación esos meses. Detalle "
-            "en CALIDAD_FUENTE.md §14.",
+            "El desglose parcial por asignación es menor: la ley se aprueba por "
+            "subtítulo. Detalle en CALIDAD_FUENTE.md §14.",
             solidez="alta"))
     except FileNotFoundError:
         out.append(pendiente("CAL-4", "Ley de programa incompleta",

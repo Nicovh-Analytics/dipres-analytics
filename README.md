@@ -46,10 +46,11 @@ técnicamente correcto y analíticamente falso.
 
 **El presupuesto de gastos se amplía todos los años.**
 La ley vigente al cierre supera a la inicial en los 9 años (mediana +17,5%;
-+61,4% en 2021). En pesos, los aumentos de gasto corriente caben en las
-excepciones del artículo 4. En dólares, 5 años muestran aumentos sin
-excepción medible (hasta US$ 87 millones), que requieren un respaldo legal
-que el dataset no muestra.
++61,4% en 2021). Los aumentos de gasto corriente caben en las excepciones
+del artículo 4, en pesos y en dólares, pero probarlo requiere fuentes que el
+dataset nacional no muestra: el programa Operaciones Complementarias del
+Tesoro, la venta de activos y los ingresos propios de cada partida, y las
+planillas de decretos de DIPRES.
 
 **La ejecución repite patrones.**
 Se ejecuta entre el 93,7% y el 99,0% de lo autorizado, pero las mismas
@@ -92,7 +93,7 @@ repetidos como 16,5). El artículo 1 de la ley, el detalle que aprueba el
 Congreso, se publica en LeyChile como imagen. Extraído, cuadra con el
 dataset en 5.927 de 5.929 combinaciones partida × subtítulo. En 2024 y 2025,
 el archivo de ley por programa publica totales que su propio detalle no suma
-(862 subtítulos; en agosto de 2024 faltan 110,5 billones de pesos en el
+(632 subtítulos con líneas que faltan o sobran; en agosto de 2024 faltan 110,5 billones de pesos en el
 detalle de impuestos del Tesoro), y la versión publicada sigue igual. Detalle
 en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md).
 

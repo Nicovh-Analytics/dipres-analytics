@@ -23,7 +23,7 @@
 | 11 | La ejecución por partida difiere de la de Contraloría | 2017-2025, líneas puntuales | `15b` las mide y las localiza por grupo de subtítulos; consulta Ley 20.285 pendiente |
 | 12 | Las operaciones de cambio suman como ingreso en pesos y restan en dólares | Subt. 11, ítem 03, todos los años | `18b` las excluye de las fuentes de financiamiento |
 | 13 | Reportes de deuda: columnas y datos que cambian entre ediciones | Ediciones 2016-2025 | `11c` lo detecta y no usa como base las tablas afectadas |
-| 14 | Ley a nivel programa: totales sin su detalle y un mes desfasado | 862 subtítulos (2024-2025); programa 2019-11 | `06` check 11 los lista; los totales se toman de la fila de subtítulo o del capítulo |
+| 14 | Ley a nivel programa: totales sin su detalle y un mes desfasado | 632 subtítulos con ítems faltantes o sobrantes (sobre todo 2024-2025), 230 con desglose parcial; programa 2019-11 | `06` check 11 los lista; los totales se toman de la fila de subtítulo o del capítulo |
 | 15 | El artículo 4 no se puede probar con el dato nacional | Gasto corriente en dólares, 2021-2025 | `16` mide las excepciones por partida y por programa; verificado con planillas de decretos |
 
 ---
@@ -220,16 +220,22 @@ Por eso el `11c` identifica cada bono internacional por moneda, año de emisión
 
 El archivo de ley a nivel programa trae, para cada subtítulo, una fila de total y su detalle por ítem y asignación. Hay dos problemas distintos.
 
-**El detalle no suma el total del mismo archivo (2024-2025).** En 862 de 337.999 subtítulos (0,26%), la suma del detalle difiere de la fila de total. Se concentran en pocos meses:
+**El detalle no suma el total del mismo archivo.** En 862 de 337.999 subtítulos (0,26%), la suma del detalle difiere de la fila de total. Son dos casos distintos:
+
+- **Ítems (632 subtítulos):** la suma de los ítems no da el total. Faltan o sobran líneas completas. Se concentran en pocos meses:
 
 | Mes | Subtítulos |
 |---|---:|
-| 2024-05 | 198 |
+| 2024-05 | 195 |
 | 2024-04 | 128 |
-| 2024-08 | 96 |
-| 2025-12 | 81 |
-| 2024-09 | 16 |
-| 2025-10 | 11 |
+| 2024-08 | 94 |
+| 2025-12 | 74 |
+| 2024-09 | 15 |
+| 2024-07 | 8 |
+
+- **Asignaciones (230 subtítulos):** los ítems suman el total, pero las asignaciones de algún ítem no suman su ítem. Es un desglose parcial y estable en el año (p. ej. Tesoro 50-01-01, subt. 01, 2018: 7,6 billones del ítem sin asignación, los 12 meses). Es menor: la ley se aprueba por subtítulo.
+
+Verificación contra el crudo (05-11-2026): para el caso mayor de cada mes, el total y el detalle recalculados sobre el `programa.csv` original dan la misma diferencia que el consolidado en 113 de 114 meses. La excepción es enero de 2020, donde el consolidado ya descartó la línea duplicada de la fuente (CAL-2).
 
 El caso mayor es el Tesoro Público (50-01-01), subtítulo 01 Impuestos, en julio y agosto de 2024: el total es 58.466.361.390 y el detalle suma −52.079.223.377 (miles de $). Contra junio, faltan cinco asignaciones en pesos y los subtotales de los ítems 1, 2, 6 y 9:
 

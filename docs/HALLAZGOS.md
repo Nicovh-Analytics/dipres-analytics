@@ -1,6 +1,6 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 04-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 05-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
@@ -253,13 +253,13 @@
 
 ### CAL-4 · La ley a nivel programa publica totales que su propio detalle no suma
 
-**Condición.** En 862 subtítulos del archivo de ley por programa, la suma del detalle por ítem y asignación difiere de la fila de total del mismo archivo. Se concentran en mayo 2024 (198), abril 2024 (128), agosto 2024 (96), diciembre 2025 (81). El caso mayor: partida 50, capítulo 1, subtítulo 1, agosto 2024: el total es 58.466.361 millones de $ y el detalle suma -52.079.223; faltan las líneas que suman la diferencia. Además, el archivo por programa de noviembre 2019 trae solo parte de las modificaciones de ese mes (se alinea en diciembre).
+**Condición.** En 632 subtítulos del archivo de ley por programa, la suma de los ítems no da la fila de total del mismo archivo: faltan o sobran líneas completas. Se concentran en mayo 2024 (195), abril 2024 (128), agosto 2024 (94), diciembre 2025 (74). El caso mayor: partida 50, capítulo 1, programa 1, subtítulo 1, agosto 2024: el total es 58.466.361 millones de $ y los ítems suman -52.079.223. Aparte, en 230 subtítulos los ítems sí suman el total, pero las asignaciones de algún ítem no suman su ítem (desglose parcial). Además, el archivo por programa de noviembre 2019 trae solo parte de las modificaciones de ese mes (se alinea en diciembre).
 
-**Criterio.** Un archivo que publica un total y su detalle debe sumar lo mismo. La lectura no descarta filas: las líneas faltan en el archivo de origen, y al 29-10-2026 la versión publicada sigue igual (comparación por SHA-256).
+**Criterio.** Un archivo que publica un total y su detalle debe sumar lo mismo. Verificado contra los archivos crudos: el caso mayor de cada mes se reproduce igual en 113 de 114 meses (la excepción, enero 2020, es la línea duplicada que ya corrige el CAL-2), y al 29-10-2026 la versión publicada sigue igual (comparación por SHA-256).
 
-**Evidencia.** `06_validar.py check 11 → ley_detalle_incompleto.csv; docs/manifiesto_datos.csv`
+**Evidencia.** `06_validar.py check 11 → ley_detalle_incompleto.csv (columna tipo); docs/manifiesto_datos.csv`
 
-**Alcance.** El total del subtítulo y los niveles capítulo y superiores no se ven afectados: el análisis los usa en vez de la suma del detalle. Afecta a quien analice por ítem o asignación esos meses. Detalle en CALIDAD_FUENTE.md §14.
+**Alcance.** El total del subtítulo y los niveles capítulo y superiores no se ven afectados: el análisis los usa en vez de la suma del detalle. El desglose parcial por asignación es menor: la ley se aprueba por subtítulo. Detalle en CALIDAD_FUENTE.md §14.
 
 ## Validación externa
 
