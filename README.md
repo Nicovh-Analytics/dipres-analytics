@@ -17,7 +17,8 @@ Para eso, los datos se contrastan con tres referencias:
 
 **Dónde mirar:** los hallazgos con su evidencia están en
 [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), los problemas de la fuente en
-[`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md), y cómo reproducir todo en
+[`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md), qué estaba reportado y qué
+es nuevo en [`docs/ANTECEDENTES.md`](docs/ANTECEDENTES.md), y cómo reproducir todo en
 [Reproducir](#reproducir).
 
 ## Hallazgos
