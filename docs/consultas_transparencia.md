@@ -1,9 +1,12 @@
-# Consultas por Ley 20.285
+## Solicitudes a DIPRES (Portal de Transparencia)
 
-| Organismo | Folio | Enviada | Vence (aprox.) | Estado |
-|---|---|---|---|---|
-| DIPRES | AE002T0004149 | 16-10-2026 | 13-11-2026 | pendiente |
-| CGR | 409147 | 16-10-2026 | 13-11-2026 | pendiente |
+| Folio | Ingreso | Vence | Materia | Hallazgos | Estado |
+|---|---|---|---|---|---|
+| AE002T0004149 | 16-10-2026 | 13-11-2026 | Archivos de ejecución presupuestaria de gastos del Gobierno Central publicados en datos.gob.cl (2017-2025): diferencias con el IGFE de la CGR | VAL-2 | Pendiente |
+| AE002T0004197 | 03-11-2026 | 01-12-2026 | Cómputo del límite de endeudamiento del artículo 3 de las Leyes de Presupuestos 2017-2025 (monto imputado, autorización para bonos de reconocimiento, colocación 2024 por serie, uso de la Ley 21.288) | DEU-1 | Pendiente |
+| AE002T0004202 | 06-11-2026 | 04-12-2026 | Integridad de los archivos de Ley de Presupuestos por programa publicados en datos.gob.cl (anexo: `consultas/anexo_cal4_ley_programa.xlsx`, 514 subtítulos) | CAL-4 | Pendiente |
+
+Plazo: 20 días hábiles desde el ingreso, prorrogables por 10 con notificación (Ley 20.285, art. 14).
 
 ## Casos consultados
 Salud 2017, 2018 y 2025 (control) · RREE inversiones 2017–2025 · Defensa US$ inversiones 2017–2021 ·
