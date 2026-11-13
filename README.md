@@ -9,11 +9,12 @@ autoriza. No busca describir en qué gasta el Estado —eso ya lo hace el
 Observatorio del Gasto Fiscal—, sino evaluar la calidad y el alcance del dato
 publicado.
 
-Para eso, los datos se contrastan con tres referencias:
+Para eso, los datos se contrastan con cuatro referencias:
 
 1. **Consigo mismos**: consistencia entre niveles (nacional, partida, capítulo, programa) y entre meses.
 2. **Con la norma**: el texto de cada Ley de Presupuestos (artículo 1 y cuadros por partida), desde [LeyChile](https://www.bcn.cl/leychile).
 3. **Con un tercero**: el Informe de la Gestión Financiera del Estado de la Contraloría.
+4. **Con lo que declaran los programas**: las bases de monitoreo de programas sociales (SES-DIPRES) que publica el Ministerio de Desarrollo Social y Familia.
 
 **Dónde mirar:** los hallazgos con su evidencia están en
 [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), los problemas de la fuente en
@@ -26,6 +27,16 @@ es nuevo en [`docs/ANTECEDENTES.md`](docs/ANTECEDENTES.md), y cómo reproducir t
 Resumen de los hallazgos. El detalle de cada uno (condición, criterio,
 evidencia y alcance) está en [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), que
 se regenera desde los reportes del pipeline.
+
+**En conjunto: con datos públicos se audita el agregado, no el programa.**
+
+| Nivel | ¿Auditable desde afuera? | Hallazgos |
+|---|---|---|
+| Presupuesto nacional y por partida | Sí | CAL-1, VAL-1, ING-5 |
+| Ejecución por partida | Con reservas: DIPRES y Contraloría difieren en las mismas líneas | VAL-2 |
+| Límites legales (arts. 3 y 4) | Solo por estimación | DEU-1, MOD-2 |
+| Programa presupuestario | No del todo: totales que su detalle no suma | CAL-4 |
+| Programa social → línea presupuestaria | Solo para 2018 | MON-1, MON-2 |
 
 **Ingresos: el sesgo de proyección es un efecto de perímetro.**
 Si se suman los subtítulos 01–15, la ley subestima lo recaudado los 9 años
@@ -98,6 +109,21 @@ el archivo de ley por programa publica totales que su propio detalle no suma
 detalle de impuestos del Tesoro), y la versión publicada sigue igual. Detalle
 en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md).
 
+**El gasto de los programas sociales solo se pudo trazar a la ejecución en 2018.**
+La base de monitoreo 2018 es la única que publica la línea presupuestaria de
+cada programa (448 programas, 17,6 billones de pesos). Cruzada con la
+ejecución de DIPRES, el 79% del gasto declarado cuadra, exacto o a nivel de
+subtítulo; pero 166 de 477 líneas (35%) declaran una línea que no existe en
+la ejecución o un gasto mayor que el ejecutado, y en 66 celdas el campo del
+código presupuestario trae un monto. Desde 2019 la base ya no publica la
+línea: 2019 no trae identificación presupuestaria, 2020-2021 solo el nombre
+de la asignación y 2022-2024 partida y capítulo. Con eso, la suma de los
+programas queda bajo la ejecución de su capítulo en 210 de 220 casos. En 8
+de los otros 10 el exceso lo cubre la partida, como en Vivienda, Transportes
+y Redes Asistenciales, con programas declarados en un capítulo que no los
+ejecuta; en 2 se explica por gasto tributario declarado como gasto (la
+Franquicia Tributaria del SENCE).
+
 ## Estructura
 
 ```
@@ -140,10 +166,10 @@ corrige en `dominio.py` y todo el pipeline queda consistente.
 
 | Etapa | Scripts |
 |---|---|
-| 1. Extracción | `02` ejecución y ley · `03` iniciativas de inversión · `04` tipos de cambio (Banco Central) · `12` corpus legal (LeyChile, Dipres) · `13` tablas del artículo 1 |
+| 1. Extracción | `02` ejecución y ley · `03` iniciativas de inversión · `03b` bases de monitoreo de programas sociales (MDSF) · `04` tipos de cambio (Banco Central) · `12` corpus legal (LeyChile, Dipres) · `13` tablas del artículo 1 |
 | 2. Consolidación | `05` crudos → consolidados y cruce ley/ejecución · `07` diccionario de datos |
 | 3. Validación | `04` perfil · `06` consistencia interna · `14` dataset vs artículo 1 · `15` dataset vs tablas por partida · `15b` dataset vs Contraloría |
-| 4. Análisis | `10` conciliación GFS · `11b` tope de endeudamiento · `11c` bonos de los reportes de deuda · `16` modificaciones · `17` ejecución · `18` ingresos · `18b` fuentes de financiamiento · `18c` bonos vs subtítulo 14 · `18d` margen de endeudamiento · `19` aporte fiscal · `20` estructura institucional |
+| 4. Análisis | `10` conciliación GFS · `11b` tope de endeudamiento · `11c` bonos de los reportes de deuda · `16` modificaciones · `17` ejecución · `18` ingresos · `18b` fuentes de financiamiento · `18c` bonos vs subtítulo 14 · `18d` margen de endeudamiento · `19` aporte fiscal · `20` estructura institucional · `24` monitoreo de programas vs ejecución |
 | 5. Informe | `21` genera [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md) · `22` y `23` gráficos |
 
 Cada script deja sus controles en `reports/_controles/`; `run.py` los resume
@@ -199,10 +225,11 @@ de cada archivo de entrada con el que se obtuvieron los resultados.
 - [x] Modificaciones, ejecución y estructura institucional
 - [x] Síntesis de hallazgos en formato de auditoría
 - [ ] Cruce a nivel programa por subtítulo e ítem
+- [x] Cruce con el monitoreo de programas sociales (2018 por línea; 2022-2024 por capítulo)
 - [x] Visualización (gráficos de los hallazgos en [`docs/graficos/`](docs/graficos/))
 - [x] Reproducibilidad: controles por script, manifiesto de datos, años de corte en un solo lugar
 - [x] Validación externa contra el IGFE de Contraloría (presupuesto y ejecución por partida)
-- [ ] Respuesta a consultas por Ley 20.285 (DIPRES y CGR, enviadas el 16-10-2026)
+- [ ] Respuesta a consultas por Ley 20.285: DIPRES y CGR (ejecución, 16-10), DIPRES (art. 3, 03-11; ley por programa, 06-11) y Subsecretaría de Evaluación Social (monitoreo, por enviar)
 
 ## Sobre el uso de IA
 

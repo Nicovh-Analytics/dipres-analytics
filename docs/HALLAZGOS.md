@@ -10,6 +10,18 @@
 
 **Lo que el dataset no ve:** leyes dictadas durante el año, gastos excedibles, el destino de cada operación de deuda. Por eso ningún hallazgo concluye "incumple": cuando algo no se explica con los datos, se indica que requiere respaldo legal.
 
+## Lectura de conjunto
+
+Los hallazgos responden la segunda pregunta del proyecto —si el dato publicado alcanza para fiscalizar el presupuesto— según el nivel de detalle:
+
+| Nivel | ¿Auditable con datos públicos? | Por qué | Hallazgos |
+|---|---|---|---|
+| Presupuesto nacional y por partida | Sí | El dataset cuadra con el texto de la ley y con Contraloría; los ingresos concilian con la cifra oficial | CAL-1, VAL-1, ING-5 |
+| Ejecución por partida | Con reservas | DIPRES y Contraloría difieren en las mismas líneas cada año, sin una explicación publicada | VAL-2 |
+| Límites legales (arts. 3 y 4) | Solo por estimación | El uso del límite de endeudamiento y de las excepciones del art. 4 no se publica; se reconstruye con fuentes laterales y hay años en el límite | DEU-1, MOD-2 |
+| Programa presupuestario | No del todo | El archivo de ley por programa publica totales que su propio detalle no suma | CAL-4 |
+| Programa social → línea presupuestaria | Solo para 2018 | La única base que publica la línea trae líneas que no calzan con la ejecución; las siguientes no publican la línea | MON-1, MON-2 |
+
 ## Resumen
 
 | Código | Hallazgo | Solidez |

@@ -1285,6 +1285,43 @@ def imagen(codigo: str) -> list[str]:
     return [f"![{alt}](graficos/{nombre}.png)", ""]
 
 
+# Lectura de conjunto: qué nivel del presupuesto se puede auditar desde afuera.
+# Sin cifras (esas viven en cada hallazgo); los códigos que no estén en la
+# corrida se omiten de la tabla.
+NIVELES = [
+    ("Presupuesto nacional y por partida", "Sí",
+     "El dataset cuadra con el texto de la ley y con Contraloría; los ingresos "
+     "concilian con la cifra oficial", ["CAL-1", "VAL-1", "ING-5"]),
+    ("Ejecución por partida", "Con reservas",
+     "DIPRES y Contraloría difieren en las mismas líneas cada año, sin una "
+     "explicación publicada", ["VAL-2"]),
+    ("Límites legales (arts. 3 y 4)", "Solo por estimación",
+     "El uso del límite de endeudamiento y de las excepciones del art. 4 no se "
+     "publica; se reconstruye con fuentes laterales y hay años en el límite",
+     ["DEU-1", "MOD-2"]),
+    ("Programa presupuestario", "No del todo",
+     "El archivo de ley por programa publica totales que su propio detalle no suma",
+     ["CAL-4"]),
+    ("Programa social → línea presupuestaria", "Solo para 2018",
+     "La única base que publica la línea trae líneas que no calzan con la "
+     "ejecución; las siguientes no publican la línea", ["MON-1", "MON-2"]),
+]
+
+
+def lectura_conjunto(codigos: set[str]) -> list[str]:
+    ls = ["## Lectura de conjunto", "",
+          "Los hallazgos responden la segunda pregunta del proyecto —si el dato "
+          "publicado alcanza para fiscalizar el presupuesto— según el nivel de "
+          "detalle:", "",
+          "| Nivel | ¿Auditable con datos públicos? | Por qué | Hallazgos |",
+          "|---|---|---|---|"]
+    for nivel, resp, porque, cods in NIVELES:
+        cods = [c for c in cods if c in codigos]
+        if cods:
+            ls.append(f"| {nivel} | {resp} | {porque} | {', '.join(cods)} |")
+    return ls + [""]
+
+
 def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
     ls = ["# Hallazgos — Presupuesto del Gobierno Central de Chile, "
           f"{PRIMER_ANIO}-{ULTIMO_ANIO_CERRADO}",
@@ -1296,7 +1333,9 @@ def markdown(bloques: list[tuple[str, list[Hallazgo]]]) -> str:
           ALCANCE_GENERAL.format(cuadre_ley=cuadre_ley_partidas(),
                                  cobertura=cobertura_datos(),
                                  primer=PRIMER_ANIO, en_curso=ANIO_EN_CURSO),
-          "", "## Resumen", ""]
+          ""]
+    ls += lectura_conjunto({h.codigo for _, hs in bloques for h in hs if not h.pendiente})
+    ls += ["## Resumen", ""]
     ls += ["| Código | Hallazgo | Solidez |", "|---|---|---|"]
     for _, hs in bloques:
         ls += [f"| {h.codigo} | {h.titulo} | {h.solidez} |" for h in hs]

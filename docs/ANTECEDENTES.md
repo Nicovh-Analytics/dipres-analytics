@@ -1,6 +1,6 @@
 # Antecedentes: qué estaba reportado y qué agrega este proyecto
 
-> Revisión: 05-11-2026. Búsqueda acotada en fuentes públicas (web). Que no se
+> Revisión: 12-11-2026. Búsqueda acotada en fuentes públicas (web). Que no se
 > haya encontrado un antecedente no significa que no exista: minutas del
 > Congreso o informes internos de la Contraloría pueden contener análisis
 > similares que no aparecen en un buscador.
@@ -17,6 +17,7 @@ datos abiertos y contrastarlo, cifra por cifra, con la norma y con un tercero.
 | **Límite de endeudamiento (art. 3)** | No se encontró una publicación del cómputo del uso del límite. Lo más cercano: en 2021 el CFA pidió mayor desagregación de los "otros requerimientos de capital", lo que se acogió en parte. | Estimación del uso del límite con el detalle de cada bono de los reportes de deuda, con su rango de incertidumbre. El cómputo oficial se solicitó por Ley 20.285. | DEU-1, VAL-3 |
 | **Clasificador presupuestario y estadísticas del FMI** | DIPRES documenta la reclasificación en sus anexos metodológicos. El CFA ha pedido en varias ocasiones transparentar metodologías (balance estructural, elasticidades). | La suma directa de los subtítulos de ingreso del dataset produce un sesgo de proyección aparente que desaparece con el perímetro del FMI. La conciliación con la cifra oficial queda cuantificada (2024: −0,55%), pero no se publica junto al dato. | ING-1, ING-2, ING-5 |
 | **Ejecución: DIPRES y Contraloría** | El Open Budget Survey 2023 califica el informe de auditoría de Chile como "no producido": el Informe de la Gestión Financiera del Estado de la Contraloría existe, pero no es una opinión de auditoría sobre la ejecución. | Diferencias entre la ejecución publicada por DIPRES y la informada por la Contraloría, por partida y año. Se consultó a ambas instituciones por Ley 20.285. | VAL-1, VAL-2 |
+| **Monitoreo de programas sociales** | La Subsecretaría de Evaluación Social y DIPRES monitorean cada año la oferta pública y publican las bases y un informe de resultados. El monitoreo califica la ejecución de cada programa contra su propio presupuesto (subejecución inicial y final), con información que reportan los servicios. El instructivo 2023 pide partida, capítulo y programa, y el ítem solo en los subtítulos 24, 31, 32 y 33; no pide la asignación. | No se encontró un cruce del gasto declarado por los programas con la ejecución publicada por DIPRES. En 2018 (única base con la línea presupuestaria) se hace línea por línea; en 2022-2024, como cota por capítulo. También queda documentado cuánta identificación presupuestaria publica cada base. | MON-1, MON-2 |
 | **Integridad de los archivos abiertos** | No se encontró una evaluación de este tipo. Las evaluaciones internacionales miden si los reportes existen y qué contienen: el Open Budget Survey 2023 asigna 96/100 al contenido de los reportes durante el año, y la OCDE (2025) destacó el alto nivel de transparencia presupuestaria de Chile. | Totales que su propio detalle no suma, niveles que no cuadran entre sí, líneas duplicadas y archivos corregidos sin aviso, verificados contra los archivos originales y con su huella (SHA-256). | CAL-1, CAL-2, CAL-4; CALIDAD_FUENTE |
 
 ## Contexto
@@ -33,4 +34,7 @@ publicada. Es contexto, no evidencia de los hallazgos de este proyecto.
 - [Diario Financiero — Mayor transparencia en las reasignaciones y en la gestión presupuestaria (2016)](https://www.df.cl/opinion/columnistas/mayor-transparencia-en-las-reasignaciones-y-en-la-gestion-presupuestaria)
 - [BioBioChile — Diputados exigen a Hacienda revelar todos los decretos (2026)](https://www.biobiochile.cl/noticias/nacional/chile/2026/04/29/diputados-del-fa-exigen-a-hacienda-revelar-todos-los-decretos-acusan-que-los-recortes-ya-estan-hechos.shtml)
 - [DIPRES — Recomendaciones de la OCDE (2025)](https://www.dipres.gob.cl/598/w3-article-383604.html)
+- [MDSF — Instructivo de monitoreo 2023](https://bips.ministeriodesarrollosocial.gob.cl/docs/informes/instructivos/2023/Instructivo_Monitoreo_2023.pdf)
+- [MDSF — Informe de resultados del proceso de monitoreo 2025](https://bips.ministeriodesarrollosocial.gob.cl/docs/informes/resultados/2025/20260825_Informe%20_resultados_proceso__monitoreo_2025.pdf)
+- [DIPRES — Informe de monitoreo, proceso 2024](https://www.dipres.gob.cl/598/articles-376789_informe_monitoreo_proceso_2024.pdf)
 - [DIPRES — Planillas de decretos de modificación por programa (ejemplo: 2023, programa 08-02-01)](https://www.dipres.gob.cl/597/articles-327581_doc_pdf.pdf)

@@ -1,6 +1,6 @@
 # Hoja de ruta — dipres-analytics
 
-> Revisión: 29-10-2026 (bloque A cerrado). Se actualiza al cerrar cada bloque, no a mitad.
+> Revisión: 12-11-2026 (bloque MON cerrado). Se actualiza al cerrar cada bloque, no a mitad.
 
 ## 1. Objetivo (lo que define qué entra)
 
@@ -26,18 +26,19 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | Script | Qué hace | Hallazgo | Tipo | Estado |
 |---|---|---|---|---|
 | 02_descargar / 03_descargar_inv | Descarga datos.gob.cl (ley y ejecución, 4 niveles; inversión) | — | S | Revisión por SHA-256 (`--revisar-contenido`, `--solo`) |
+| 03b_descargar_monitoreo | Bases de monitoreo de programas sociales y diccionarios (CKAN del MDSF; excluye CASEN) | MON | S | OK |
 | 04_tipos_cambio | Dólar, euro y UF diarios (mindicador) | — | S | OK; el número se repite con `04_perfilar` (otra etapa): no se renumera |
 | 12 | Descarga normativa (LeyChile) | — | S | OK |
 | 13_extraer_imagenes_ley | Extrae las imágenes del art. 1 (base64 en el XML de LeyChile) | VAL-2 | S | Mantener; paso manual (OCR/lectura) |
 | 05_consolidar / 07_diccionario | Cruces ley × ejecución por nivel; diccionario | CAL | S | 05: 5 ⚠; 07 sin controles |
-| 04_perfilar / 06_validar | Perfil de columnas; coherencia entre niveles y duplicados | CAL | S | 06: 6 ❌ a reclasificar; `04` duplicado |
+| 04_perfilar / 06_validar | Perfil de columnas; coherencia entre niveles y duplicados | CAL | S | 06 reclasificado (CAL-4); `04` duplicado |
 | 14 / 15 validación | ley_inicial vs Ley publicada (art. 1) | VAL-2, VAL-3 | N | OK; escriben en `docs/` a propósito |
 | 15b_validar_vs_cgr | Ejecución vs IGFE de Contraloría | VAL | N | 132 ⚠ por revisar |
 | 10 conciliacion_gfs | Clasificador → GFS → cifra oficial; TC supuesto vs observado | ING-1, ING-2 | N | Controles agregados; cifra oficial solo 2024 |
 | 11 tope_vs_estimacion | ¿ley_inicial es pronóstico o tope? (prueba por patrones) | — | R | A `archivo/`: lo respondió la lectura normativa (11b, 17, 10) |
 | 11b tope_endeudamiento | Tope art. 3 leído del texto + ajustes legales | DEU-1 | N | OK |
 | 11c bonos_deuda | 52 tablas de los reportes de deuda | DEU-1 | S | OK; 5 ⚠ conocidos |
-| 16 modificaciones | Ley inicial → vigente, bruto y neto | MOD-1 | N | 5 ⚠ por revisar |
+| 16 modificaciones | Ley inicial → vigente, bruto y neto; excepciones del art. 4 | MOD-1, MOD-2 | N | OK; art. 4 sin avisos |
 | 17 ejecución | Ejecución vs vigente, cumplimiento art. 4 | EJE-3 | N | 2 ⚠ por revisar |
 | 18 ingresos | Proyección vs real, perímetro FMI | ING-1, ING-2 | N | Sin controles |
 | 18b financiamiento | Fuentes de cada año, neteos | FIN-1 | R | OK (descriptivo) |
@@ -45,8 +46,9 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | 18d margen_endeudamiento | Uso estimado del tope art. 3 | DEU-1 | N | OK; cifra oficial pedida por Transparencia |
 | 19 aporte_fiscal | Reconstruye el aporte fiscal por ministerio; valida contra art. 2 (2017-2020) | VAL | S | Mantener como validación; salidas = respaldo |
 | 20 estructura_institucional | Altas/bajas de servicios y descuadres | EST-3, CAL-1 | N | Controles agregados hoy; usa matplotlib |
-| 21 sintesis | Genera `HALLAZGOS.md` | todos | N | OK |
-| 22 / 23 gráficos | Hallazgos / análisis | — | S | DEU-1 con rango viejo |
+| 24 monitoreo_programas | Monitoreo de programas vs ejecución: línea (2018), cota por capítulo (2022-2024), detalle publicado | MON-1, MON-2 | N | OK |
+| 21 sintesis | Genera `HALLAZGOS.md`, con la lectura de conjunto por nivel | todos | N | OK |
+| 22 / 23 gráficos | Hallazgos / análisis | — | S | OK |
 | herramientas/mapa_flujo | Mapa de dependencias | — | S | OK |
 
 
@@ -62,9 +64,12 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
   No ampliarlo.
 - **Deuda técnica pequeña y conocida**: 11, 13 y 19 sin destino claro; dos
   `04`; tipo de cambio en dos fuentes (`TC_OBSERVADO` a mano y `anual.csv`).
-- **Riesgo principal: la publicación, no el análisis.** El repo tiene 23
-  hallazgos y casi ningún gráfico en el README. Para portafolio, lo que falta
-  es mostrarlo.
+- **Riesgo principal: la publicación, no el análisis.** El repo tiene 25
+  hallazgos. HALLAZGOS y el README abren con la lectura de conjunto (qué nivel
+  se puede auditar desde afuera); lo que falta es el paper y la difusión.
+- **MON abrió la pregunta de efectividad sin salir del objetivo**: no evalúa
+  resultados de programas, solo si su gasto declarado se puede trazar a la
+  ejecución. Evaluar resultados queda fuera (§5).
 
 ## 4. Hoja de ruta
 
@@ -85,9 +90,15 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 2. Ajustes de diseño de MOD-1, EJE-3, EST-3.
 3. Insertar los gráficos en README y HALLAZGOS.
 4. Revisión del usuario de los textos ING-2, DEU-1 y VAL-3.
-5. Enviar la consulta de Transparencia a DIPRES sobre el art. 3 y registrarla
-   en `consultas_transparencia.md`.
-6. ~13-nov: incorporar las respuestas de CGR/DIPRES (las ya enviadas).
+5. ✓ Consulta de Transparencia a DIPRES sobre el art. 3 (03-11) y sobre la
+   ley por programa (06-11).
+6. Incorporar las respuestas: ejecución DIPRES/CGR (vence 13-11; si no hay
+   respuesta ni prórroga, amparo ante el CPLT), art. 3 (01-12), ley por
+   programa (04-12).
+7. ✓ MON-1/MON-2 (12-11): cruce del monitoreo de programas sociales con la
+   ejecución (03b, 24). Pendiente: enviar a la Subsecretaría de Evaluación
+   Social la solicitud de la identificación presupuestaria 2019-2024.
+8. ✓ Lectura de conjunto al inicio de HALLAZGOS y del README.
 
 ### Bloque C — Reproducibilidad (después de B, solo lo que afecte resultados)
 1. ✓ A3: `herramientas/manifiesto.py` → `docs/manifiesto_datos.csv` (1.429 archivos,
@@ -113,3 +124,4 @@ Leyenda: **N** núcleo (responde el objetivo) · **S** soporte · **R** rama
 | Dashboard Streamlit | — | Presentación; después de publicar |
 | Caja por administración | ¿Cuánta caja generó o consumió cada administración entre traspasos? Variación estimada desde flujos (ingresos − gastos, incl. subts. 11, 14, 30, 34 y deuda flotante 34.07), contrastada con los Otros Activos del Tesoro (OATP) que publica DIPRES a los mismos cortes | Fuente nueva (Activos Consolidados del Tesoro) y tema en debate público: tomar después del bloque B, en formato condición-criterio, sin juicio |
 | Iniciativas de inversión (geográfico) | — | Fuente distinta |
+| Resultados de programas | ¿Los programas que cuadran con la ejecución logran sus objetivos? (evaluaciones ex post DIPRES, indicadores del monitoreo) | Evalúa desempeño, no ejecución ni dato publicado |
