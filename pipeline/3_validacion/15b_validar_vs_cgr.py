@@ -31,7 +31,7 @@ del dataset sin par en la CGR (p. ej. Gobiernos Regionales dentro de
 Interior hasta 2020).
 
 Entrada: <raw>/externo/cgr/IGFE*<año>*.pdf, descargados a mano desde
-https://www.contraloria.cl/web/cgr/igfe (ver fuentes.md en esa carpeta).
+https://www.contraloria.cl/web/cgr/igfe (origen en docs/fuentes_externas.csv).
 Requiere: pip install pdfplumber
 
 Salidas:

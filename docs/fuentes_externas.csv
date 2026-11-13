@@ -1,0 +1,9 @@
+patron,url,organismo,obtencion,descripcion
+externo/cgr/IGFE *.pdf,https://www.contraloria.cl/web/cgr/igfe,Contraloría General de la República,manual,"Informe de la Gestión Financiera del Estado, un PDF por año (15b)"
+externo/deuda/*.pdf,,DIPRES,manual,"Reporte de Deuda Bruta del Gobierno Central: dic_AAAA.pdf y trimestres (11c). URL por completar"
+externo/bcch/*.csv,,Banco Central de Chile (Base de Datos Estadísticos),manual,"Dólar observado promedio anual, control de TC_OBSERVADO (dominio). URL por completar"
+externo/tipo_cambio/*.csv,https://mindicador.cl/api,mindicador.cl (series del Banco Central),script 04_tipos_cambio,"Dólar, euro y UF diarios; anual.csv es su promedio"
+externo/bips/*,https://bid-ckan.ministeriodesarrollosocial.gob.cl,Ministerio de Desarrollo Social y Familia,script 03b_descargar_monitoreo,"Bases de monitoreo SES-DIPRES y diccionarios (URL exacta en el log)"
+normativa/*,https://www.bcn.cl/leychile,BCN LeyChile y DIPRES,script 12_descarga_normativa,"Textos de las leyes de presupuestos, DL 1.263 y DS 854 (XML de LeyChile; PDF de DIPRES)"
+docs/art1_ley_presupuestos.csv,https://www.bcn.cl/leychile,BCN LeyChile,transcripción manual,"Artículo 1 de cada Ley de Presupuestos, leído de las imágenes del texto (13); control cruzado de 14"
+(cifra en 10_conciliacion_gfs.py),https://www.dipres.gob.cl,DIPRES,manual,"Ingresos del Gobierno Central 2024 del Informe de Finanzas Públicas (4T2024)"
