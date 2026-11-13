@@ -51,6 +51,7 @@ def argumentos(script: Path) -> list[str]:
     return {
         "02_descargar.py": ["--si"],
         "03_descargar_inv.py": ["--si"],
+        "03b_descargar_monitoreo.py": ["--si"],
         "05_consolidar.py": ["--salida", str(DIRS["consolidado"])],
     }.get(script.name, [])
 

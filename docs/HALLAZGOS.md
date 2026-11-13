@@ -1,10 +1,10 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 05-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 12-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
-**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025) y los tipos de cambio del Banco Central.
+**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025), los tipos de cambio del Banco Central y las bases de monitoreo de programas sociales (SES-DIPRES) del Ministerio de Desarrollo Social y Familia.
 
 **Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son un error del texto de la ley, CALIDAD_FUENTE.md §10), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 
@@ -37,6 +37,8 @@
 | VAL-1 | El presupuesto publicado por DIPRES coincide con el de Contraloría | alta |
 | VAL-2 | La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas | media |
 | VAL-3 | La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado | alta |
+| MON-1 | Un tercio de las líneas que declaran los programas sociales no calza con la ejecución presupuestaria | alta |
+| MON-2 | Las bases de monitoreo dejaron de publicar la línea presupuestaria de cada programa | media |
 | FIN-1 | La deuda neta financió entre el 9% y el 19% de cada año | análisis |
 
 ## Ingresos: proyección y recaudación
@@ -298,6 +300,28 @@
 **Alcance.** El subt. 14 incluye créditos con organismos que no son bonos y registra lo recibido en caja, no el valor nominal. Los bonos emitidos y vencidos entre dos reportes no se ven. Los reportes de deuda tienen inconsistencias entre ediciones, documentadas en CALIDAD_FUENTE.md, §13; las 52 tablas leídas cuadran con su total.
 
 **Explicación de la diferencia.** En dólares la diferencia positiva es la esperada por los créditos. En pesos, hipótesis sin verificar: el bono colocado sobre la par (tasa de mercado bajo el cupón) entrega más caja que su valor nominal, y bajo la par menos; en 2022 las tasas superaron los cupones de varias series. Verificarlo requiere el precio de cada colocación (resultados de licitación de Hacienda).
+
+## Programas sociales: gasto declarado vs ejecución
+
+### MON-1 · Un tercio de las líneas que declaran los programas sociales no calza con la ejecución presupuestaria
+
+**Condición.** En la base de monitoreo 2018 (448 programas, 17,64 billones de $ declarados), el 79,2% del gasto se puede trazar a la ejecución de DIPRES por línea presupuestaria: 48,5% cuadra exacto y 30,7% cuadra con el subtítulo completo, declarado bajo un solo ítem. Otro 9,8% queda bajo la ejecución de su línea. Pero 166 de 477 líneas (34,8%) no calzan: 117 declaran una línea que no existe en la ejecución (asignación, subtítulo o programa inexistente, o la asignación bajo otro ítem) y 49 un gasto mayor que el ejecutado. Los mayores excesos: Barrios Prioritarios (Ex Intervención en Barrios de Alta Complejidad) (×29, 2 programas); Fondo de Iniciativas para la Superación de la Pobreza - Chile de Todas y Todos (×23); Aporte Fiscal Directo (Art. 2, DFL (Ed.) Nº4, de 1981) (×1,5). Además, en 66 celdas de 29 programas el campo del código presupuestario trae un monto en vez de un código.
+
+**Criterio.** La identificación presupuestaria que declara cada programa debe existir en la Ley de Presupuestos, y su gasto no puede superar la ejecución de esa línea (DIPRES, diciembre 2018, miles de $). Igual: diferencia menor a 1%. Los programas que comparten una línea se suman.
+
+**Evidencia.** `24_monitoreo_programas.py → monitoreo_cruce_2018.csv, monitoreo_clases_2018.csv`
+
+**Alcance.** Las bases de monitoreo las completan los propios servicios (proceso SES-DIPRES, publicado por el Ministerio de Desarrollo Social y Familia). Un gasto declarado menor que su línea es esperable cuando el programa usa solo una parte de ella. Las líneas con un monto en el campo del código se comparan a nivel ítem o subtítulo. 2018 es la única base que publica la línea completa (MON-2).
+
+### MON-2 · Las bases de monitoreo dejaron de publicar la línea presupuestaria de cada programa
+
+**Condición.** Identificación presupuestaria publicada por base: línea (programa, subtítulo, ítem y asignación) en 2018; sin identificación presupuestaria en 2019; nombre de la asignación, sin código en 2020, 2021; capítulo en 2022, 2023, 2024. El cruce por línea de MON-1 no se puede repetir con los datos publicados después de 2018. Con lo que sí se publica (partida y capítulo; 2022, 2023, 2024), el gasto declarado por los programas supera la ejecución de su capítulo en 10 de 220 capítulos·año: 2 se explican solo por programas de gasto tributario declarados como gasto ejecutado (Franquicia Tributaria (ex Impulsa Personas), 15-05 en 2023; Franquicia Tributaria (ex Impulsa Personas), 15-05 en 2024); en 8 el total de la partida cubre el exceso, lo que calza con programas que ejecutan otros servicios declarados en un solo capítulo (p. ej. Transporte Público Metropolitano, 19-02 en 2023, ×33,5; Fondo Solidario de Elección de Vivienda DS49, 18-21 en 2024, ×27,7).
+
+**Criterio.** Para auditar el gasto de un programa hay que poder ubicarlo en la ejecución presupuestaria. Cota: el gasto de los programas de un capítulo no puede superar el gasto ejecutado del capítulo (subtítulos 21 y siguientes, pesos y dólares).
+
+**Evidencia.** `24_monitoreo_programas.py → monitoreo_detalle_publicado.csv, monitoreo_cota_capitulo.csv`
+
+**Alcance.** El instructivo de monitoreo 2023 pide partida, capítulo y programa, y el ítem solo en los subtítulos 24, 31, 32 y 33; no pide la asignación. Las bases publicadas traen un solo par partida-capítulo por programa: un programa financiado desde varios capítulos queda entero en uno, lo que puede producir un exceso aparente; que la partida cubra el exceso no prueba que el gasto esté ahí, solo que la cota ya no lo refuta. Gasto tributario: programas cuyo nombre indica una franquicia, crédito o exención tributaria. El gasto viene en miles de pesos del año siguiente y se lleva al año con la UF promedio.
 
 ## Análisis descriptivo (no son hallazgos de auditoría)
 

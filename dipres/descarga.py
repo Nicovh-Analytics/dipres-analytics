@@ -1,7 +1,8 @@
 """
 descarga.py — Funciones compartidas por los scripts de descarga (02, 03)
 ========================================================================
-  buscar_ckan          búsqueda paginada en datos.gob.cl
+  buscar_ckan          búsqueda paginada en un portal CKAN (datos.gob.cl
+                       por defecto)
   descargar_archivo    descarga atómica: escribe en <archivo>.part, valida
                        y recién entonces renombra. Un archivo final nunca
                        queda a medias. Si reemplaza uno existente, el
@@ -56,15 +57,18 @@ SESION = _sesion()
 # =====================================================
 # CKAN
 # =====================================================
-def buscar_ckan(queries: list[str], filtro=None) -> list[dict]:
+def buscar_ckan(queries: list[str], filtro=None,
+                base_url: str | None = None) -> list[dict]:
     """Datasets únicos (por id) de todas las queries, paginando.
-    `filtro(ds) -> bool` descarta los que no interesan."""
+    `filtro(ds) -> bool` descarta los que no interesan. `base_url` apunta a
+    otro portal CKAN (por defecto, datos.gob.cl)."""
+    base_url = base_url or CKAN["base_url"]
     encontrados = {}
     for q in queries:
         offset = 0
         while True:
             try:
-                r = SESION.get(f"{CKAN['base_url']}/package_search",
+                r = SESION.get(f"{base_url}/package_search",
                                params={"q": q, "rows": CKAN["rows_por_pagina"],
                                        "start": offset},
                                timeout=30)
@@ -224,6 +228,8 @@ def ejecutar_tareas(tareas: list[tuple[Path, str, str]], log: LogDescarga,
 
     for i, (destino, url, titulo) in enumerate(tareas, start=1):
         rel = destino.relative_to(base)
+        if i % 50 == 0:
+            print(f"   … {i}/{total} ({rel})", flush=True)
         existe = destino.exists() and not sobrescribir
         if existe and revisar_contenido:
             ok, motivo = descargar_archivo(url, destino, solo_si_cambia=True)

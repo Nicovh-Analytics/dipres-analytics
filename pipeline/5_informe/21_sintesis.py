@@ -17,7 +17,8 @@ en vez de fallar.
 Bloques: ingresos (10, 18, 18b), estructura institucional (20), calidad de
 la fuente (05, 20, _versiones), modificaciones, ejecución y endeudamiento
 (16, 17, 18d), validación externa (15b contra Contraloría, 18c contra los
-reportes de deuda) y análisis descriptivo (18b), que no son hallazgos.
+reportes de deuda), programas sociales (24, monitoreo SES-DIPRES) y análisis
+descriptivo (18b), que no son hallazgos.
 
 Uso:
     python pipeline/5_informe/21_sintesis.py
@@ -1058,6 +1059,139 @@ def _val3() -> Hallazgo:
 
 
 # =====================================================
+# Bloque: programas sociales (monitoreo SES-DIPRES)
+# =====================================================
+def _primer_nombre(nombres: str) -> str:
+    return str(nombres).split(" | ")[0].strip()
+
+
+def hallazgo_mon1() -> Hallazgo:
+    """MON-1 — cruce por línea del monitoreo 2018 con la ejecución DIPRES."""
+    r = leer("monitoreo_resumen_2018.csv").set_index("indicador")["valor"]
+    lin = leer("monitoreo_cruce_2018.csv")
+    anio = int(r.anio)
+    ex = lin[lin.grupo == "excede a DIPRES"].nlargest(3, "gasto_monitoreo")
+    casos = "; ".join(
+        f"{_primer_nombre(x.nombres)} (×{num(x.razon, 0 if x.razon >= 10 else 1)}"
+        + (f", {int(x.programas)} programas)" if x.programas > 1 else ")")
+        for x in ex.itertuples())
+    n_mal, n_exc = int(r.lineas_mal_imputada), int(r.lineas_excede)
+    return Hallazgo(
+        "MON-1", "Un tercio de las líneas que declaran los programas sociales no "
+                 "calza con la ejecución presupuestaria"
+        if (r.pct_lineas_mal_imputada + r.pct_lineas_excede) >= 30 else
+        "El gasto que declaran los programas sociales se puede trazar a la "
+        "ejecución, con líneas mal imputadas",
+        f"En la base de monitoreo {anio} ({num(r.programas)} programas, "
+        f"{num(r.gasto_total / 1e9, 2)} billones de $ declarados), el "
+        f"{pct(r.pct_gasto_cuadra + r.pct_gasto_cuadra_subtitulo, signo=False)} del "
+        f"gasto se puede trazar a la ejecución de DIPRES por línea presupuestaria: "
+        f"{pct(r.pct_gasto_cuadra, signo=False)} cuadra exacto y "
+        f"{pct(r.pct_gasto_cuadra_subtitulo, signo=False)} cuadra con el subtítulo "
+        f"completo, declarado bajo un solo ítem. Otro "
+        f"{pct(r.pct_gasto_menor, signo=False)} queda bajo la ejecución de su línea. "
+        f"Pero {num(n_mal + n_exc)} de {num(r.lineas)} líneas "
+        f"({pct(r.pct_lineas_mal_imputada + r.pct_lineas_excede, signo=False)}) no "
+        f"calzan: {num(n_mal)} declaran una línea que no existe en la ejecución "
+        f"(asignación, subtítulo o programa inexistente, o la asignación bajo otro "
+        f"ítem) y {num(n_exc)} un gasto mayor que el ejecutado. Los mayores excesos: "
+        f"{casos}. Además, en {num(r.celdas_monto_en_codigo)} celdas de "
+        f"{num(r.programas_monto_en_codigo)} programas el campo del código "
+        f"presupuestario trae un monto en vez de un código.",
+        "La identificación presupuestaria que declara cada programa debe existir "
+        "en la Ley de Presupuestos, y su gasto no puede superar la ejecución de esa "
+        f"línea (DIPRES, diciembre {anio}, miles de $). Igual: diferencia menor a 1%. "
+        "Los programas que comparten una línea se suman.",
+        f"24_monitoreo_programas.py → monitoreo_cruce_{anio}.csv, "
+        f"monitoreo_clases_{anio}.csv",
+        "Las bases de monitoreo las completan los propios servicios (proceso "
+        "SES-DIPRES, publicado por el Ministerio de Desarrollo Social y Familia). "
+        "Un gasto declarado menor que su línea es esperable cuando el programa usa "
+        "solo una parte de ella. Las líneas con un monto en el campo del código se "
+        f"comparan a nivel ítem o subtítulo. {anio} es la única base que publica la "
+        "línea completa (MON-2).",
+        solidez="alta")
+
+
+def hallazgo_mon2() -> Hallazgo:
+    """MON-2 — detalle publicado por año y cota por capítulo."""
+    det = leer("monitoreo_detalle_publicado.csv")
+    niveles = "; ".join(
+        f"{n} en {', '.join(map(str, sorted(g.base)))}"
+        for n, g in sorted(det.groupby("nivel"), key=lambda kv: kv[1].base.min()))
+    try:
+        c = leer("monitoreo_cota_capitulo.csv")
+        c = c[c.resultado != "capítulo sin ejecución en DIPRES"]
+        cuenta = c.resultado.value_counts()
+        n = lambda r: int(cuenta.get(r, 0))
+        n_sobre = len(c) - n("dentro")
+        cap = lambda r: f"{int(r.Partida):02d}-{int(r.Capítulo):02d} en {int(r.anio)}"
+        trib = c[c.resultado == "excede solo por gasto tributario declarado"]
+        part = c[c.resultado == "excede el capítulo, la partida lo cubre"].nlargest(2, "razon")
+        exc = c[c.resultado == "excede"].nlargest(3, "razon")
+        partes = []
+        if len(trib):
+            partes.append(
+                f"{num(len(trib))} se explican solo por programas de gasto tributario "
+                f"declarados como gasto ejecutado ("
+                + "; ".join(f"{r.programa_tributario}, {cap(r)}" for r in trib.itertuples())
+                + ")")
+        if len(part):
+            partes.append(
+                f"en {num(n('excede el capítulo, la partida lo cubre'))} el total de la "
+                f"partida cubre el exceso, lo que calza con programas que ejecutan otros "
+                f"servicios declarados en un solo capítulo (p. ej. "
+                + "; ".join(f"{r.programa_mayor}, {cap(r)}, ×{num(r.razon, 1)}"
+                            for r in part.itertuples()) + ")")
+        if len(exc):
+            partes.append(
+                f"{num(len(exc))} exceden incluso a nivel de partida ("
+                + "; ".join(f"{cap(r)}, ×{num(r.razon, 2)}" for r in exc.itertuples()) + ")")
+        anios = ", ".join(map(str, sorted(c.anio.unique())))
+        cota = (f" Con lo que sí se publica (partida y capítulo; {anios}), el gasto "
+                f"declarado por los programas supera la ejecución de su capítulo en "
+                f"{num(n_sobre)} de {num(len(c))} capítulos·año"
+                + (": " + "; ".join(partes) if partes else "") + ".")
+    except FileNotFoundError:
+        cota = ""
+    return Hallazgo(
+        "MON-2", "Las bases de monitoreo dejaron de publicar la línea presupuestaria "
+                 "de cada programa",
+        f"Identificación presupuestaria publicada por base: {niveles}. El cruce por "
+        f"línea de MON-1 no se puede repetir con los datos publicados después de "
+        f"{int(det[det.nivel.str.startswith('línea')].base.max())}.{cota}"
+        if det.nivel.str.startswith("línea").any() else
+        f"Ninguna base publica la línea presupuestaria completa.{cota}",
+        "Para auditar el gasto de un programa hay que poder ubicarlo en la "
+        "ejecución presupuestaria. Cota: el gasto de los programas de un capítulo "
+        "no puede superar el gasto ejecutado del capítulo (subtítulos 21 y "
+        "siguientes, pesos y dólares).",
+        "24_monitoreo_programas.py → monitoreo_detalle_publicado.csv, "
+        "monitoreo_cota_capitulo.csv",
+        "El instructivo de monitoreo 2023 pide partida, capítulo y programa, y el "
+        "ítem solo en los subtítulos 24, 31, 32 y 33; no pide la asignación. Las "
+        "bases publicadas traen un solo par partida-capítulo por programa: un "
+        "programa financiado desde varios capítulos queda entero en uno, lo que "
+        "puede producir un exceso aparente; que la partida cubra el exceso no prueba "
+        "que el gasto esté ahí, solo que la cota ya no lo refuta. Gasto tributario: "
+        "programas cuyo nombre indica una franquicia, crédito o exención "
+        "tributaria. El gasto viene en miles de pesos del año siguiente y se lleva "
+        "al año con la UF promedio.",
+        solidez="media")
+
+
+def bloque_programas() -> list[Hallazgo]:
+    out = []
+    for f, cod, tit in [(hallazgo_mon1, "MON-1", "Monitoreo vs ejecución por línea"),
+                        (hallazgo_mon2, "MON-2", "Detalle publicado del monitoreo")]:
+        try:
+            out.append(f())
+        except FileNotFoundError:
+            out.append(pendiente(cod, tit, "correr 24_monitoreo_programas.py"))
+    return out
+
+
+# =====================================================
 # Informe
 # =====================================================
 BLOQUES = [("Ingresos: proyección y recaudación", bloque_ingresos),
@@ -1065,6 +1199,7 @@ BLOQUES = [("Ingresos: proyección y recaudación", bloque_ingresos),
            ("Estructura institucional", bloque_estructura),
            ("Calidad de la fuente", bloque_calidad),
            ("Validación externa", bloque_validacion),
+           ("Programas sociales: gasto declarado vs ejecución", bloque_programas),
            ("Análisis descriptivo (no son hallazgos de auditoría)",
             bloque_analisis)]
 
@@ -1109,8 +1244,9 @@ ALCANCE_GENERAL = """\
 Central publicadas por DIPRES en datos.gob.cl ({cobertura}), textos de \
 las leyes de presupuestos {primer}-{en_curso}, cifras del Informe de Finanzas Públicas, \
 el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), \
-los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025) y los \
-tipos de cambio del Banco Central.
+los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025), los \
+tipos de cambio del Banco Central y las bases de monitoreo de programas \
+sociales (SES-DIPRES) del Ministerio de Desarrollo Social y Familia.
 
 **Seguridad razonable** para los niveles nacional y partida al cierre de cada \
 año: la ley inicial cuadra con los cuadros por partida de cada ley \
