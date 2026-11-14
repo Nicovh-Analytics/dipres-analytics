@@ -454,8 +454,14 @@ def __getattr__(nombre):
 
 def tipo_cambio(anio, tasa: str) -> float:
     """Tipo de cambio del año; `tasa` = "supuesto" u "observado"."""
-    tasas = {"supuesto": TC_SUPUESTO, "observado": _tc_observado()}
-    tc = tasas[tasa].get(int(anio))
+    # Solo se lee la serie diaria si se pide el observado
+    if tasa == "supuesto":
+        tasas = TC_SUPUESTO
+    elif tasa == "observado":
+        tasas = _tc_observado()
+    else:
+        raise ValueError(f"tasa debe ser 'supuesto' u 'observado', no {tasa!r}")
+    tc = tasas.get(int(anio))
     if tc is None:
         origen = ("dominio.TC_SUPUESTO" if tasa == "supuesto"
                   else "la serie diaria (04_tipos_cambio.py; año incompleto?)")
@@ -509,4 +515,4 @@ TOPE_AJUSTES: dict[int, list[tuple[float, str]]] = {
 TOPE_PLURIANUAL: dict[str, tuple[float, list[int]]] = {
     # Art. 6: hasta US$8.000 millones, vigente hasta el 30-06-2022
     "Ley 21.288 (Fondo COVID)": (8_000_000, [2020, 2021, 2022]),
-}
+}

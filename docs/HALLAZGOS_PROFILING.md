@@ -12,81 +12,81 @@
 ## 2. Contratos Canónicos por Familia y Nivel
 
 ### Familia: `LEY` | Nivel: `NACIONAL`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 7 columnas)
+#### Estructura #1 (117 archivos - 7 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'subtitulo', 'nombre subtitulo', 'monto ley inicial', '<monto_ley_vigente>']
 ```
 
 ### Familia: `LEY` | Nivel: `PARTIDA`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 9 columnas)
+#### Estructura #1 (117 archivos - 9 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'subtitulo', 'nombre subtitulo', 'monto ley inicial', '<monto_ley_vigente>']
 ```
 
 ### Familia: `LEY` | Nivel: `CAPITULO`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 11 columnas)
+#### Estructura #1 (117 archivos - 11 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'capitulo', 'nombre capitulo', 'subtitulo', 'nombre subtitulo', 'monto ley inicial', '<monto_ley_vigente>']
 ```
 
 ### Familia: `LEY` | Nivel: `PROGRAMA`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 32
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 17 columnas)
+#### Estructura #1 (117 archivos - 17 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'capitulo', 'nombre capitulo', 'programa', 'nombre programa', 'subtitulo', 'nombre subtitulo', 'item', 'nombre item', 'asignacion', 'nombre asignacion', 'monto ley inicial', '<monto_ley_vigente>']
 ```
 
 ### Familia: `EJECUCION` | Nivel: `NACIONAL`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 7 columnas)
+#### Estructura #1 (117 archivos - 7 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'subtitulo', 'nombre subtitulo', '<ejecucion_mes>', '<ejecucion_acumulada>']
 ```
 
 ### Familia: `EJECUCION` | Nivel: `PARTIDA`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 9 columnas)
+#### Estructura #1 (117 archivos - 9 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'subtitulo', 'nombre subtitulo', '<ejecucion_mes>', '<ejecucion_acumulada>']
 ```
 
 ### Familia: `EJECUCION` | Nivel: `CAPITULO`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 11 columnas)
+#### Estructura #1 (117 archivos - 11 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'capitulo', 'nombre capitulo', 'subtitulo', 'nombre subtitulo', '<ejecucion_mes>', '<ejecucion_acumulada>']
 ```
 
 ### Familia: `EJECUCION` | Nivel: `PROGRAMA`
-- **Archivos analizados**: 116
+- **Archivos analizados**: 117
 - **Archivos con roturas reales de texto**: 0
 - **Estructuras canónicas detectadas**: 1
 
-#### Estructura #1 (116 archivos - 19 columnas)
+#### Estructura #1 (117 archivos - 19 columnas)
 ```python
 ['ano', 'mes', 'moneda', 'partida', 'nombre partida', 'capitulo', 'nombre capitulo', 'programa', 'nombre programa', 'subtitulo', 'nombre subtitulo', 'item', 'nombre item', 'asignacion', 'nombre asignacion', 'sub-asignacion', 'nombre sub-asignacion', '<ejecucion_mes>', '<ejecucion_acumulada>']
 ```

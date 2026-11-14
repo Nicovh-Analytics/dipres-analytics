@@ -235,6 +235,7 @@ def ejecutar_tareas(tareas: list[tuple[Path, str, str]], log: LogDescarga,
             ok, motivo = descargar_archivo(url, destino, solo_si_cambia=True)
             if ok and motivo == SIN_CAMBIOS:
                 n["sin_cambios"] += 1
+                log.registrar(destino, ok, None, url, titulo)   # verificado: fecha y URL
             elif ok:
                 n["cambiados"] += 1
                 print(f"[{i}/{total}] {rel}  ⚠ contenido distinto al local: "
@@ -248,6 +249,10 @@ def ejecutar_tareas(tareas: list[tuple[Path, str, str]], log: LogDescarga,
         if existe:
             if not revisar_tamano:
                 n["saltados"] += 1
+                # Archivo sin entrada en el log (bajado antes del log o por
+                # otra vía): se registra su URL sin volver a bajarlo
+                if str(destino) not in log.datos:
+                    log.registrar(destino, True, None, url, titulo)
                 continue
             remoto = tamano_remoto(url)
             local = destino.stat().st_size
@@ -287,4 +292,4 @@ def imprimir_conteo(n: dict[str, int]) -> None:
         print(f"  =  Contenido idéntico: {n['sin_cambios']}")
         print(f"  ⚠  Contenido cambiado (anterior en _versiones/): "
               f"{n['cambiados']}")
-    print(f"  ❌ Errores:     {n['errores']}")
+    print(f"  ❌ Errores:     {n['errores']}")

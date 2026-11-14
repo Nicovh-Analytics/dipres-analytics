@@ -1,12 +1,12 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 12-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 13-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
-**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-08), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025), los tipos de cambio del Banco Central y las bases de monitoreo de programas sociales (SES-DIPRES) del Ministerio de Desarrollo Social y Familia.
+**Fuente:** ejecución presupuestaria mensual y Ley de Presupuestos del Gobierno Central publicadas por DIPRES en datos.gob.cl (2017-01 a 2026-09), textos de las leyes de presupuestos 2017-2026, cifras del Informe de Finanzas Públicas, el Informe de la Gestión Financiera del Estado de la Contraloría (2017-2025), los Reportes de Deuda Bruta del Gobierno Central de DIPRES (2016-2025), los tipos de cambio del Banco Central y las bases de monitoreo de programas sociales (SES-DIPRES) del Ministerio de Desarrollo Social y Familia.
 
-**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.927 de 5.929 combinaciones partida·subtítulo (las 2 restantes son un error del texto de la ley, CALIDAD_FUENTE.md §10), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
+**Seguridad razonable** para los niveles nacional y partida al cierre de cada año: la ley inicial cuadra con los cuadros por partida de cada ley en 5.929 de 5.931 combinaciones partida·subtítulo (las 2 restantes son un error del texto de la ley, CALIDAD_FUENTE.md §10), el presupuesto por partida coincide con el de Contraloría y los ingresos concilian con la cifra oficial. La ejecución por partida difiere de la de Contraloría en líneas puntuales (VAL-2). Los niveles capítulo y programa tienen inconsistencias de publicación documentadas en [CALIDAD_FUENTE.md](CALIDAD_FUENTE.md).
 
 **Lo que el dataset no ve:** leyes dictadas durante el año, gastos excedibles, el destino de cada operación de deuda. Por eso ningún hallazgo concluye "incumple": cuando algo no se explica con los datos, se indica que requiere respaldo legal.
 
@@ -267,7 +267,7 @@ Los hallazgos responden la segunda pregunta del proyecto —si el dato publicado
 
 ### CAL-4 · La ley a nivel programa publica totales que su propio detalle no suma
 
-**Condición.** En 632 subtítulos del archivo de ley por programa, la suma de los ítems no da la fila de total del mismo archivo: faltan o sobran líneas completas. Se concentran en mayo 2024 (195), abril 2024 (128), agosto 2024 (94), diciembre 2025 (74). El caso mayor: partida 50, capítulo 1, programa 1, subtítulo 1, agosto 2024: el total es 58.466.361 millones de $ y los ítems suman -52.079.223. Aparte, en 230 subtítulos los ítems sí suman el total, pero las asignaciones de algún ítem no suman su ítem (desglose parcial). Además, el archivo por programa de noviembre 2019 trae solo parte de las modificaciones de ese mes (se alinea en diciembre).
+**Condición.** En 633 subtítulos del archivo de ley por programa, la suma de los ítems no da la fila de total del mismo archivo: faltan o sobran líneas completas. Se concentran en mayo 2024 (195), abril 2024 (128), agosto 2024 (94), diciembre 2025 (74). El caso mayor: partida 50, capítulo 1, programa 1, subtítulo 1, agosto 2024: el total es 58.466.361 millones de $ y los ítems suman -52.079.223. Aparte, en 232 subtítulos los ítems sí suman el total, pero las asignaciones de algún ítem no suman su ítem (desglose parcial). Además, el archivo por programa de noviembre 2019 trae solo parte de las modificaciones de ese mes (se alinea en diciembre).
 
 **Criterio.** Un archivo que publica un total y su detalle debe sumar lo mismo. Verificado contra los archivos crudos: el caso mayor de cada mes se reproduce igual en 113 de 114 meses (la excepción, enero 2020, es la línea duplicada que ya corrige el CAL-2), y al 29-10-2026 la versión publicada sigue igual (comparación por SHA-256).
 

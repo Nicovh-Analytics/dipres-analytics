@@ -3,15 +3,26 @@ name = "dipres-analytics"
 version = "0.1.0"
 description = "Auditoría de datos de ejecución presupuestaria del Gobierno Central de Chile"
 requires-python = ">=3.11"
+# Versiones fijas: las del entorno con que se obtuvieron los resultados de
+# docs/HALLAZGOS.md. Cambiar una versión es un cambio de método: correr el
+# pipeline y revisar el diff de HALLAZGOS antes de subirlo.
 dependencies = [
-    "pandas",
-    "pyarrow",
-    "pdfplumber",
-    "plotly",
-    "kaleido",
-    "requests",
-    "matplotlib",
+    "pandas==3.1.0",
+    "numpy==2.5.4",
+    "pyarrow==26.0.0",
+    "openpyxl==3.1.5",
+    "pdfplumber==0.11.10",
+    "plotly==7.1.0",
+    "kaleido==1.5.0",
+    "requests==2.34.2",
+    "matplotlib==3.11.2",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
 
 [tool.setuptools]
 packages = ["dipres"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
