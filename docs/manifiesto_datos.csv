@@ -581,7 +581,7 @@ ejecucion/2026/09/capitulo.csv,416920,2026-11-13T22:38:58,191af15ab419b97d3462a1
 ejecucion/2026/09/nacional.csv,3069,2026-11-13T22:38:54,19bec3be10569a0bfe18172843c4b89c50b187cea82b909a5013d869d73da29b,https://datos.gob.cl/dataset/53cc4a5f-e7e3-4031-bc16-d5ead5469a03/resource/cf949585-1655-43a1-ba7e-559ec63d0e45/download/ejecucion-presupuestaria_nivel-nacional_a-septiembre-2026.csv,log
 ejecucion/2026/09/partida.csv,54013,2026-11-13T22:38:56,cb93987ad5857b53331c1839004a382b8573086cc0b56e40a8d0d3b12be2416b,https://datos.gob.cl/dataset/53cc4a5f-e7e3-4031-bc16-d5ead5469a03/resource/38113991-fbe2-44ac-8470-75eadc11293e/download/ejecucion-presupuestaria_nivel-partida_a-septiembre-2026.csv,log
 ejecucion/2026/09/programa.csv,10474210,2026-11-13T22:39:02,83263e5155c02c56158ce992528b6cbc9bb4137ab9d2a7330d7a6a2ace58021f,https://datos.gob.cl/dataset/53cc4a5f-e7e3-4031-bc16-d5ead5469a03/resource/6db42ccf-5b96-4fa7-b4fa-9b2edc55e4f6/download/ejecucion-presupuestaria_nivel-programa_a-septiembre-2026.csv,log
-externo/bcch/dolar_observado_anual.csv,184,2026-10-22T21:44:28,641754580942732551d39cecfbf69c1210783707dac6f854fe10e7bd84a9d155,,registro
+externo/bcch/dolar_observado_anual.csv,184,2026-10-22T21:44:28,641754580942732551d39cecfbf69c1210783707dac6f854fe10e7bd84a9d155,https://si3.bcentral.cl/siete/ES/Siete/Cuadro/CAP_TIPO_CAMBIO/MN_TIPO_CAMBIO4/DOLAR_OBS_ADO,registro
 externo/bips/base_2018.xlsx,3655302,2026-11-11T23:07:34,975b2f2ba14cf92c156cdf1c3e95065cf34ee963427e63ac01aec97659b21669,https://bid-ckan.ministeriodesarrollosocial.gob.cl,registro
 externo/bips/base_2019.xlsx,273350,2026-11-11T23:07:36,240cd01de2512422925128b96aac4e35761ce3532cfc4bd996fac1c3bc7caead,https://bid-ckan.ministeriodesarrollosocial.gob.cl,registro
 externo/bips/base_2020.xlsx,266733,2026-11-11T23:07:36,a1226793002e25f8c35e3643d63f1994d46cf5bc1d8b9b1ad20e2e9afdf6705f,https://bid-ckan.ministeriodesarrollosocial.gob.cl,registro
@@ -600,18 +600,19 @@ externo/cgr/IGFE 2022.pdf,9236180,2026-10-15T22:59:06,00e0c8c4d3f7cb70d767860b2c
 externo/cgr/IGFE 2023.pdf,6973467,2026-10-15T22:57:50,56e8771d1f0440b65639eb0d5d77c5ed39c8870ac09e8b75efdc1fb221872b33,https://www.contraloria.cl/web/cgr/igfe,registro
 externo/cgr/IGFE 2024.pdf,2551697,2026-10-15T22:57:38,1064edbee304440d58e62be52823b9535643af76db1f113d287d40f6cfd92383,https://www.contraloria.cl/web/cgr/igfe,registro
 externo/cgr/IGFE 2025.pdf,11903014,2026-10-15T22:55:16,afc301fcc3826ee8eb781e3dc82c92e1fbe5f85ea48634981b73d99d92cae504,https://www.contraloria.cl/web/cgr/igfe,registro
-externo/deuda/dic_2016.pdf,307699,2026-10-23T08:38:06,fa1500dba4f070b23080901830122c9af224dc8a4a4271c0934d50187dde8bd0,,registro
-externo/deuda/dic_2017.pdf,258717,2026-10-23T08:35:08,8144dc07ee464df8e931b4e6cee2ead7ac2bf3122fe929574933e0180d5b6d87,,registro
-externo/deuda/dic_2018.pdf,352881,2026-10-23T08:35:00,990a50d83eee35b6a37860b8747d31e55e09bcdb3d693eda50a5e8d2a39f9c02,,registro
-externo/deuda/dic_2019.pdf,1455685,2026-10-23T08:34:50,8b4f73c329cc9dd981bf29cbb0a02f25fcfe3dd98f37f5f5c620fcd4a6a92553,,registro
-externo/deuda/dic_2020.pdf,1519855,2026-10-23T08:34:42,f6a2fcf8b1e091cf563e91ac021d82217c0c055ef351e39d9b6e8e66db708e51,,registro
-externo/deuda/dic_2021.pdf,674677,2026-10-23T08:34:32,54110a6c56c1a5fe9bb1ffa315997d1d8a0a3eedb90e18bedf41612677da9a4a,,registro
-externo/deuda/dic_2022.pdf,626474,2026-10-23T08:34:22,fe5256edf1a10ed5334a9b929a1c66d48ca458ca8855efb832633d17124363fb,,registro
-externo/deuda/dic_2023.pdf,422702,2026-10-23T08:34:02,1244185d3727b33d46028347d45419c3ed0483c9ccef9c49b84fd1fe6be4ed57,,registro
-externo/deuda/dic_2024.pdf,398968,2026-10-23T08:33:48,21dfb534d37d8be9c88b1466ec824a34f56d36fd3c83b7d6909568754dc57b13,,registro
-externo/deuda/dic_2025.pdf,564770,2026-10-23T08:33:06,e6d14511bb7dbb03fd02684fb2c7920ddbe9650b2cb555d0119052a8589a7c05,,registro
-externo/deuda/mar_2025.pdf,247034,2026-10-23T09:16:50,ab1695f09211bff5e94da4243ca092807fe5b17f27f111147681ea0bec66bae3,,registro
-externo/deuda/sep_2024.pdf,685929,2026-10-23T09:16:22,e3c86735d6472d596328e548d58953a54fca8121f660241da82355c243157685,,registro
+externo/cgr/OF216260-2026_ANT-1.xlsx,537917,2026-11-13T18:46:20,03997be276bf7fb28ccf5e6b6d3da660a2810386753e4fec3b0c89e120c7edd1,,registro
+externo/deuda/dic_2016.pdf,307699,2026-10-23T08:38:06,fa1500dba4f070b23080901830122c9af224dc8a4a4271c0934d50187dde8bd0,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2017.pdf,258717,2026-10-23T08:35:08,8144dc07ee464df8e931b4e6cee2ead7ac2bf3122fe929574933e0180d5b6d87,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2018.pdf,352881,2026-10-23T08:35:00,990a50d83eee35b6a37860b8747d31e55e09bcdb3d693eda50a5e8d2a39f9c02,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2019.pdf,1455685,2026-10-23T08:34:50,8b4f73c329cc9dd981bf29cbb0a02f25fcfe3dd98f37f5f5c620fcd4a6a92553,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2020.pdf,1519855,2026-10-23T08:34:42,f6a2fcf8b1e091cf563e91ac021d82217c0c055ef351e39d9b6e8e66db708e51,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2021.pdf,674677,2026-10-23T08:34:32,54110a6c56c1a5fe9bb1ffa315997d1d8a0a3eedb90e18bedf41612677da9a4a,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2022.pdf,626474,2026-10-23T08:34:22,fe5256edf1a10ed5334a9b929a1c66d48ca458ca8855efb832633d17124363fb,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2023.pdf,422702,2026-10-23T08:34:02,1244185d3727b33d46028347d45419c3ed0483c9ccef9c49b84fd1fe6be4ed57,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2024.pdf,398968,2026-10-23T08:33:48,21dfb534d37d8be9c88b1466ec824a34f56d36fd3c83b7d6909568754dc57b13,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/dic_2025.pdf,564770,2026-10-23T08:33:06,e6d14511bb7dbb03fd02684fb2c7920ddbe9650b2cb555d0119052a8589a7c05,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/mar_2025.pdf,247034,2026-10-23T09:16:50,ab1695f09211bff5e94da4243ca092807fe5b17f27f111147681ea0bec66bae3,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
+externo/deuda/sep_2024.pdf,685929,2026-10-23T09:16:22,e3c86735d6472d596328e548d58953a54fca8121f660241da82355c243157685,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,registro
 externo/tipo_cambio/anual.csv,345,2026-10-28T23:36:06,dd13236be9af3970e5e5fc7a4469cb6bc1e29642ba67d11213d1a5c0d0180f54,https://mindicador.cl/api,registro
 externo/tipo_cambio/diario.csv,227018,2026-10-28T23:36:06,e151a28e1f12c92930aebb89d225cd1113268b32be85b8a129137c33fb099d26,https://mindicador.cl/api,registro
 inversion/2021/detalle.csv,496935,2026-09-21T18:20:06,7d3d3a9220acdb2be73e0b57cc567e2933c2346ea1a3fe20e8567f2d3f38f20a,https://datos.gob.cl/dataset/c6fee6ad-5f27-474d-aaf3-3a33b05b16f4/resource/dcd0c034-41ef-4b65-a207-e0cc33b22747/download/inversionesnivelpresupuestonacional-nacionalaenero2021-total.csv,log

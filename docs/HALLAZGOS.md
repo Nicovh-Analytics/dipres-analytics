@@ -1,6 +1,6 @@
 # Hallazgos — Presupuesto del Gobierno Central de Chile, 2017-2025
 
-> Generado por `21_sintesis.py` el 13-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
+> Generado por `21_sintesis.py` el 16-11-2026 desde los reportes del pipeline. No editar a mano: las cifras se regeneran.
 
 ## Alcance
 
@@ -47,7 +47,7 @@ Los hallazgos responden la segunda pregunta del proyecto —si el dato publicado
 | CAL-2 | Los archivos de DIPRES requieren correcciones puntuales para leerse completos | alta |
 | CAL-4 | La ley a nivel programa publica totales que su propio detalle no suma | alta |
 | VAL-1 | El presupuesto publicado por DIPRES coincide con el de Contraloría | alta |
-| VAL-2 | La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas | media |
+| VAL-2 | La ejecución publicada difiere de la de Contraloría por criterios que ninguna de las dos publica | media |
 | VAL-3 | La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado | alta |
 | MON-1 | Un tercio de las líneas que declaran los programas sociales no calza con la ejecución presupuestaria | alta |
 | MON-2 | Las bases de monitoreo dejaron de publicar la línea presupuestaria de cada programa | media |
@@ -287,19 +287,19 @@ Los hallazgos responden la segunda pregunta del proyecto —si el dato publicado
 
 **Alcance.** La CGR recibe los datos desde SIGFE, el mismo sistema de origen que DIPRES, pero los compila y valida por su cuenta. La prueba verifica la agregación que publica DIPRES, no el registro de cada servicio. Los tribunales, el CPLT, el INDH y la Defensoría de la Niñez figuran en el IGFE pero no como partida en datos.gob.cl.
 
-### VAL-2 · La ejecución publicada difiere de la de Contraloría en líneas puntuales, siempre las mismas
+### VAL-2 · La ejecución publicada difiere de la de Contraloría por criterios que ninguna de las dos publica
 
 ![Ejecución DIPRES vs Contraloría](graficos/val2_dataset_vs_cgr.png)
 
-**Condición.** El devengado por partida cuadra en 200 de 310 partida·año·moneda. En las diferencias (sin Gobiernos Regionales), el dataset informa menos que la CGR en 97 de 107 casos, y en 84 la diferencia es menor al 1% de la partida. De los 85 partida·año con diferencia que tienen desglose por subtítulo en el IGFE, en 74 el 80% o más se concentra en un solo grupo. Se repite en los mismos lugares: Ministerio de Defensa Nacional, inversiones (US$) (8 años); Ministerio de Salud, transferencias (7 años); Ministerio de Relaciones Exteriores, inversiones (7 años); Ministerio de Educación, transferencias (5 años). La propia CGR corrigió en informes posteriores el devengado de 17 partida·año (el mayor: Ministerio de Obras Públicas 2018, 133.994 millones de $); la comparación usa la cifra corregida.
+**Condición.** El devengado por partida cuadra en 200 de 310 partida·año·moneda. En las diferencias (sin Gobiernos Regionales), el dataset informa menos que la CGR en 97 de 107 casos, y en 84 la diferencia es menor al 1% de la partida. De los 85 partida·año con diferencia que tienen desglose por subtítulo en el IGFE, en 74 el 80% o más se concentra en un solo grupo. Se repite en los mismos lugares: Ministerio de Defensa Nacional, inversiones (US$) (8 años); Ministerio de Salud, transferencias (7 años); Ministerio de Relaciones Exteriores, inversiones (7 años); Ministerio de Educación, transferencias (5 años). La propia CGR corrigió en informes posteriores el devengado de 17 partida·año (el mayor: Ministerio de Obras Públicas 2018, 133.994 millones de $); la comparación usa la cifra corregida. La CGR respondió por Ley 20.285 con su detalle por subtítulo para 29 partida·año·moneda: 28 de 28 se explican por completo con gasto en el subtítulo 30 (adquisición de activos financieros) que la CGR registra y el dataset no (14 casos: Ministerio de Relaciones Exteriores, Ministerio de Defensa Nacional); el subtítulo 32 (préstamos), con signo o valor distinto (5 casos: Poder Judicial, Ministerio del Interior, Ministerio de Salud); transferencias internas que DIPRES y la CGR eliminan por montos distintos (4 casos: Ministerio del Interior, Ministerio de Salud). En Interior 2022 la diferencia es de perímetro: la CGR suma lo que gastan los Gobiernos Regionales y el dataset lo que se les transfiere. Con la lista completa de transferencias que elimina la CGR (todas las partidas), DIPRES elimina un monto distinto en 51 de 136 partida·año·moneda, de 12 partidas; en 48 de ellos DIPRES elimina más. En total, 84 de 110 diferencias de devengado quedan explicadas, del todo o en parte: 27 con el detalle de la respuesta, 49 solo por las transferencias eliminadas, 4 en parte por ellas y 4 por el perímetro de los Gobiernos Regionales; las 26 restantes están en Ministerio de Defensa Nacional (6), Ministerio de Justicia y Derechos Humanos (4), Ministerio de Obras Públicas (4), Ministerio de Educación (3) y otras.
 
 **Criterio.** Devengado del IGFE (cifra más reciente publicada por la CGR para cada año) contra ejecución acumulada a diciembre de cruce_partida, total y por grupo de subtítulos (tabla de gastos devengados por partida y subtítulo del IGFE).
 
-**Evidencia.** `15b_validar_vs_cgr.py → validacion_cgr.csv, validacion_cgr_subtitulo.csv, cgr_revisiones.csv`
+**Evidencia.** `15b_validar_vs_cgr.py → validacion_cgr.csv, validacion_cgr_subtitulo.csv, cgr_revisiones.csv; 15c_conciliar_cgr.py → conciliacion_cgr.csv, conciliacion_cgr_transferencias.csv, conciliacion_cgr_val2.csv`
 
-**Alcance.** Ambas fuentes cubren los mismos servicios en las partidas revisadas (conteo de servicios del IGFE vs capítulos del dataset). La CGR consolida datos recibidos hasta febrero o marzo del año siguiente. Los IGFE no explican las diferencias ni concilian con DIPRES, y la CGR no publica cifras bajo el nivel partida, por lo que la línea exacta no se puede identificar desde afuera. Gobiernos Regionales se excluye: la CGR obtiene su ejecución de otra fuente (información por región).
+**Alcance.** Ambas fuentes cubren los mismos servicios en las partidas revisadas (conteo de servicios del IGFE vs capítulos del dataset). La CGR consolida datos recibidos hasta febrero o marzo del año siguiente. Los IGFE no explican las diferencias ni concilian con DIPRES, y la CGR no publica cifras bajo el nivel partida: el detalle por subtítulo y la lista de transferencias eliminadas vienen de su respuesta por Ley 20.285 (oficio 216260-2026), que cubre solo las partidas consultadas. Gobiernos Regionales se excluye del conteo: la CGR obtiene su ejecución de otra fuente (información por región).
 
-**Explicación de la diferencia.** Tres tipos, según dónde cae la diferencia: (1) consolidación: en Salud la CGR elimina menos transferencias internas que DIPRES (queda entre la partida consolidada y la suma de capítulos); (2) registros que el dataset no tiene en ningún nivel: RREE inversiones y Trabajo prestaciones (2017-2018), donde partida y suma de capítulos coinciden y aun así la CGR registra más; (3) posible neteo: Poder Judicial informa préstamos negativos en el dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a DIPRES y a la CGR con estos casos.
+**Explicación de la diferencia.** La respuesta de la CGR confirma, con sus propias cifras por subtítulo, los criterios que se habían inferido desde afuera. Queda por explicar por qué difieren: DIPRES tiene pendiente su respuesta a la consulta por Ley 20.285.
 
 ### VAL-3 · La emisión de bonos de los reportes de deuda cuadra con el endeudamiento ejecutado
 

@@ -1013,30 +1013,42 @@ def bloque_validacion() -> list[Hallazgo]:
     except FileNotFoundError:
         pass
 
+    respuesta = _respuesta_cgr(nombres)
+    conciliada = bool(respuesta)
     out.append(Hallazgo(
-        "VAL-2", "La ejecución publicada difiere de la de Contraloría en "
-                 "líneas puntuales, siempre las mismas",
+        "VAL-2", ("La ejecución publicada difiere de la de Contraloría por "
+                  "criterios que ninguna de las dos publica") if conciliada else
+                 ("La ejecución publicada difiere de la de Contraloría en "
+                  "líneas puntuales, siempre las mismas"),
         f"El devengado por partida cuadra en {ok} de {len(d)} partida·año·"
         f"moneda. En las diferencias (sin Gobiernos Regionales), el dataset "
         f"informa menos que la CGR en {menor} de {len(dif)} casos, y en "
         f"{bajo1} la diferencia es menor al 1% de la partida.{patron}"
-        f"{recurrentes}{revis}",
+        f"{recurrentes}{revis}{respuesta}",
         "Devengado del IGFE (cifra más reciente publicada por la CGR para cada "
         "año) contra ejecución acumulada a diciembre de cruce_partida, total y "
         "por grupo de subtítulos (tabla de gastos devengados por partida y "
         "subtítulo del IGFE).",
         "15b_validar_vs_cgr.py → validacion_cgr.csv, "
-        "validacion_cgr_subtitulo.csv, cgr_revisiones.csv",
+        "validacion_cgr_subtitulo.csv, cgr_revisiones.csv"
+        + ("; 15c_conciliar_cgr.py → conciliacion_cgr.csv, "
+           "conciliacion_cgr_transferencias.csv, conciliacion_cgr_val2.csv"
+           if conciliada else ""),
         "Ambas fuentes cubren los mismos servicios en las partidas revisadas "
         "(conteo de servicios del IGFE vs capítulos del dataset). La CGR "
         "consolida datos recibidos hasta febrero o marzo del año siguiente. "
         "Los IGFE no explican las diferencias ni concilian con DIPRES, y la "
-        "CGR no publica cifras bajo el nivel partida, por lo que la línea "
-        "exacta no se puede identificar desde afuera. Gobiernos Regionales se "
-        "excluye: la CGR obtiene su ejecución de otra fuente (información por "
-        "región).",
+        "CGR no publica cifras bajo el nivel partida: el detalle por subtítulo "
+        "y la lista de transferencias eliminadas vienen de su respuesta por Ley "
+        "20.285 (oficio 216260-2026), que cubre solo las partidas consultadas. "
+        "Gobiernos Regionales se excluye del conteo: la CGR obtiene su "
+        "ejecución de otra fuente (información por región).",
         solidez="media",
-        explicacion="Tres tipos, según dónde cae la diferencia: (1) "
+        explicacion=("La respuesta de la CGR confirma, con sus propias cifras "
+        "por subtítulo, los criterios que se habían inferido desde afuera. "
+        "Queda por explicar por qué difieren: DIPRES tiene pendiente su "
+        "respuesta a la consulta por Ley 20.285.") if conciliada else
+        ("Tres tipos, según dónde cae la diferencia: (1) "
         "consolidación: en Salud la CGR elimina menos transferencias internas "
         "que DIPRES (queda entre la partida consolidada y la suma de "
         "capítulos); (2) registros que el dataset no tiene en ningún nivel: "
@@ -1044,10 +1056,82 @@ def bloque_validacion() -> list[Hallazgo]:
         "suma de capítulos coinciden y aun así la CGR registra más; (3) "
         "posible neteo: Poder Judicial informa préstamos negativos en el "
         "dataset y positivos en la CGR. Pendiente: consulta por Ley 20.285 a "
-        "DIPRES y a la CGR con estos casos."))
+        "DIPRES y a la CGR con estos casos.")))
 
     out.append(_val3())
     return out
+
+
+CRITERIOS_CGR = [
+    ("subt30_sin_registro", "gasto en el subtítulo 30 (adquisición de activos "
+     "financieros) que la CGR registra y el dataset no"),
+    ("subt32_prestamos", "el subtítulo 32 (préstamos), con signo o valor "
+     "distinto"),
+    ("transferencias", "transferencias internas que DIPRES y la CGR eliminan "
+     "por montos distintos"),
+]
+
+
+def _respuesta_cgr(nombres) -> str:
+    """Párrafo de VAL-2 con la conciliación de la respuesta de la CGR (15c)."""
+    try:
+        k = leer("conciliacion_cgr.csv")
+    except FileNotFoundError:
+        return ""
+    tol = 2_000                     # miles, igual que el 15c
+    resto = k[~k.perimetro_gore]
+    expl = int(resto.explicada.sum())
+    partes = []
+    for col, texto in CRITERIOS_CGR:
+        x = k[k[col].abs() > tol]
+        if len(x):
+            quienes = ", ".join(nombre(nombres.get(p, p))
+                                for p in sorted(x.partida.unique()))
+            partes.append(f"{texto} ({len(x)} caso{'s' if len(x) > 1 else ''}: "
+                          f"{quienes})")
+    per = k[k.perimetro_gore]
+    perimetro = (f" En Interior {', '.join(map(str, sorted(per.anio.unique())))} "
+                 f"la diferencia es de perímetro: la CGR suma lo que gastan los "
+                 f"Gobiernos Regionales y el dataset lo que se les transfiere."
+                 if len(per) else "")
+    general = ""
+    try:
+        t = leer("conciliacion_cgr_transferencias.csv")
+        d = t[t.diferencia.abs() > tol]
+        if len(d):
+            general = (f" Con la lista completa de transferencias que elimina la "
+                       f"CGR (todas las partidas), DIPRES elimina un monto "
+                       f"distinto en {len(d)} de {len(t)} partida·año·moneda, de "
+                       f"{d.partida.nunique()} partidas; en {int((d.diferencia > 0).sum())} "
+                       f"de ellos DIPRES elimina más.")
+    except FileNotFoundError:
+        pass
+    total = ""
+    try:
+        c = leer("conciliacion_cgr_val2.csv")
+        n = c.explicacion.value_counts()
+        sin = c[c.explicacion == "sin explicar"]
+        donde = ""
+        if len(sin):
+            top = sin.groupby("partida").size().sort_values(ascending=False).head(4)
+            donde = ((f"; las {len(sin)} restantes están en " if len(sin) > 1
+                      else "; la restante está en ")
+                     + ", ".join(f"{nombre(nombres.get(p, p))} ({k})"
+                                 for p, k in top.items())
+                     + (" y otras" if sin.partida.nunique() > 4 else ""))
+        total = (f" En total, {len(c) - len(sin)} de {len(c)} diferencias de "
+                 f"devengado quedan explicadas, del todo o en parte: "
+                 f"{int(n.get('respuesta CGR por subtítulo', 0))} con el detalle "
+                 f"de la respuesta, {int(n.get('transferencias eliminadas', 0))} "
+                 f"solo por las transferencias eliminadas, "
+                 f"{int(n.get('transferencias eliminadas, en parte', 0))} en parte "
+                 f"por ellas y {int(n.get('perímetro Gobiernos Regionales', 0))} "
+                 f"por el perímetro de los Gobiernos Regionales{donde}.")
+    except FileNotFoundError:
+        pass
+    return (f" La CGR respondió por Ley 20.285 con su detalle por subtítulo para "
+            f"{len(k)} partida·año·moneda: {expl} de {len(resto)} se explican por "
+            f"completo con " + "; ".join(partes) + "." + perimetro + general + total)
 
 
 def _val3() -> Hallazgo:

@@ -1,7 +1,8 @@
 patron,url,organismo,obtencion,descripcion
 externo/cgr/IGFE *.pdf,https://www.contraloria.cl/web/cgr/igfe,Contraloría General de la República,manual,"Informe de la Gestión Financiera del Estado, un PDF por año (15b)"
-externo/deuda/*.pdf,,DIPRES,manual,"Reporte de Deuda Bruta del Gobierno Central: dic_AAAA.pdf y trimestres (11c). URL por completar"
-externo/bcch/*.csv,,Banco Central de Chile (Base de Datos Estadísticos),manual,"Dólar observado promedio anual, control de TC_OBSERVADO (dominio). URL por completar"
+externo/cgr/OF*.xlsx,,Contraloría General de la República,respuesta Ley 20.285,"Oficio 216260-2026: devengado vigente en SICOGEN, detalle por subtítulo y transferencias eliminadas (15c). Sin URL: llegó por el portal de Transparencia"
+externo/deuda/*.pdf,https://www.dipres.gob.cl/598/w3-propertyvalue-15500.html,DIPRES,manual,"Deuda Bruta del Gobierno Central: pestaña del año, reporte trimestral; guardado como dic_AAAA.pdf o mar/jun/sep_AAAA.pdf (11c)"
+externo/bcch/*.csv,https://si3.bcentral.cl/siete/ES/Siete/Cuadro/CAP_TIPO_CAMBIO/MN_TIPO_CAMBIO4/DOLAR_OBS_ADO,Banco Central de Chile (Base de Datos Estadísticos),manual,"Dólar observado, frecuencia anual (promedio). Respaldo de los valores de TC_OBSERVADO_BDE en dominio.py; ningún script lo lee"
 externo/tipo_cambio/*.csv,https://mindicador.cl/api,mindicador.cl (series del Banco Central),script 04_tipos_cambio,"Dólar, euro y UF diarios; anual.csv es su promedio"
 externo/bips/*,https://bid-ckan.ministeriodesarrollosocial.gob.cl,Ministerio de Desarrollo Social y Familia,script 03b_descargar_monitoreo,"Bases de monitoreo SES-DIPRES y diccionarios (URL exacta en el log)"
 normativa/*,https://www.bcn.cl/leychile,BCN LeyChile y DIPRES,script 12_descarga_normativa,"Textos de las leyes de presupuestos, DL 1.263 y DS 854 (XML de LeyChile; PDF de DIPRES)"
