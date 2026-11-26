@@ -193,7 +193,7 @@ Detalle en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md) y
 ## Reproducir
 
 ```bash
-git clone <url> && cd dipres-analytics
+git clone https://github.com/Nicovh-Analytics/dipres-analytics.git && cd dipres-analytics
 pip install -e .
 export DIPRES_HOME=/d/data/dipres-datos     # Git Bash; ajustar
 python run.py --lista                  # etapas y scripts
