@@ -1,34 +1,29 @@
 # DIPRES — Auditoría de datos presupuestarios
 
-> En desarrollo · hallazgos preliminares, metodología en revisión.
+[![tests](https://github.com/Nicovh-Analytics/dipres-analytics/actions/workflows/tests.yml/badge.svg)](https://github.com/Nicovh-Analytics/dipres-analytics/actions/workflows/tests.yml)
 
-Este proyecto examina si los datos de ejecución presupuestaria que DIPRES
-publica en [datos.gob.cl](https://datos.gob.cl) permiten fiscalizar el gasto
-del Gobierno Central (2017–2026), y si la ejecución se ajusta a lo que la ley
-autoriza. No busca describir en qué gasta el Estado —eso ya lo hace el
-Observatorio del Gasto Fiscal—, sino evaluar la calidad y el alcance del dato
-publicado.
+**¿Los datos de ejecución presupuestaria que DIPRES publica en datos.gob.cl alcanzan para fiscalizar el gasto del Gobierno Central?** Para el agregado, sí: el dataset cuadra con el texto de cada Ley de Presupuestos y con Contraloría, y concilia con la cifra oficial de ingresos. Para el programa, no del todo: el archivo de ley por programa publica totales que su propio detalle no suma, y el gasto de los programas sociales solo se puede trazar a su línea presupuestaria en 2018.
 
-Para eso, los datos se contrastan con cuatro referencias:
+> *English summary: an audit of the budget execution data that Chile's Budget Office (DIPRES) publishes as open data (2017–2026). Instead of describing spending, it tests whether the published data is enough to audit it — against itself (consistency across levels), against the law (each Budget Act, extracted from the official text), against an independent third party (the Comptroller General's annual report) and against what social programs report. The aggregate is auditable: the dataset matches the law in 5,929 of 5,931 ministry × budget-line combinations and reconciles with the official revenue figure within 0.55%. The program level is not: published program totals don't add up to their own detail, and social programs can only be traced to budget lines for 2018.*
 
-1. **Consigo mismos**: consistencia entre niveles (nacional, partida, capítulo, programa) y entre meses.
-2. **Con la norma**: el texto de cada Ley de Presupuestos (artículo 1 y cuadros por partida), desde [LeyChile](https://www.bcn.cl/leychile).
-3. **Con un tercero**: el Informe de la Gestión Financiera del Estado de la Contraloría.
-4. **Con lo que declaran los programas**: las bases de monitoreo de programas sociales (SES-DIPRES) que publica el Ministerio de Desarrollo Social y Familia.
+> En desarrollo · hallazgos preliminares; consultas por Ley de Transparencia pendientes de respuesta.
 
-**Dónde mirar:** los hallazgos con su evidencia están en
-[`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), los problemas de la fuente en
-[`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md), qué estaba reportado y qué
-es nuevo en [`docs/ANTECEDENTES.md`](docs/ANTECEDENTES.md), y cómo reproducir todo en
-[Reproducir](#reproducir).
+![Error de proyección de ingresos](docs/graficos/ing1_perimetro.png)
+
+## Qué se contrasta
+
+| Referencia | Fuente |
+|---|---|
+| Consigo mismo | consistencia entre niveles (nacional, partida, capítulo, programa) y entre meses |
+| La norma | artículo 1 y cuadros por partida de cada Ley de Presupuestos ([LeyChile](https://www.bcn.cl/leychile)) |
+| Un tercero | Informe de la Gestión Financiera del Estado (Contraloría) |
+| Los programas | bases de monitoreo de programas sociales (SES-DIPRES, MDSF) |
+
+No busca describir en qué gasta el Estado —eso ya lo hace el Observatorio del Gasto Fiscal—, sino evaluar la calidad y el alcance del dato publicado. Qué estaba reportado y qué es nuevo: [`docs/ANTECEDENTES.md`](docs/ANTECEDENTES.md).
 
 ## Hallazgos
 
-Resumen de los hallazgos. El detalle de cada uno (condición, criterio,
-evidencia y alcance) está en [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), que
-se regenera desde los reportes del pipeline.
-
-**En conjunto: con datos públicos se audita el agregado, no el programa.**
+**Con datos públicos se audita el agregado, no el programa.**
 
 | Nivel | ¿Auditable desde afuera? | Hallazgos |
 |---|---|---|
@@ -38,91 +33,15 @@ se regenera desde los reportes del pipeline.
 | Programa presupuestario | No del todo: totales que su detalle no suma | CAL-4 |
 | Programa social → línea presupuestaria | Solo para 2018 | MON-1, MON-2 |
 
-**Ingresos: el sesgo de proyección es un efecto de perímetro.**
-Si se suman los subtítulos 01–15, la ley subestima lo recaudado los 9 años
-(+14,9%, p = 0,004). Al excluir lo que es financiamiento y no ingreso
-(endeudamiento, venta de activos financieros, recuperación de préstamos),
-el sesgo deja de ser significativo (+3,7%, p = 1,0): el 76% del error viene
-de líneas que en la ley son autorizaciones, no estimaciones. Impuestos no
-tiene sesgo acumulado (+0,1%), pero en 7 de 9 años recauda menos de lo
-proyectado (mediana −6,1%).
+Los principales:
 
-![Error de proyección de ingresos](docs/graficos/ing1_perimetro.png)
+- **ING-1 · El sesgo de proyección de ingresos es un efecto de perímetro.** Sumando los subtítulos 01–15, la ley subestima lo recaudado los 9 años (+14,9%, p = 0,004). Al excluir lo que es financiamiento y no ingreso, el sesgo deja de ser significativo (+3,7%).
+- **ING-5 · Los datos abiertos concilian con la cifra oficial, pero la conciliación no se publica.** Con el perímetro del manual del FMI, los ingresos 2024 difieren en −0,55% del Informe de Finanzas Públicas; sumados sin conocer la reclasificación, el resultado es técnicamente correcto y analíticamente falso.
+- **VAL-2 · La ejecución difiere de la de Contraloría en las mismas partidas cada año.** El presupuesto por partida cuadra en 305 de 310 casos; el devengado no siempre, casi siempre con el dataset por debajo, y ninguno de los dos informes lo explica.
+- **CAL-4 · La ley por programa publica totales que su detalle no suma.** En 2024 y 2025, 632 subtítulos con líneas que faltan o sobran; la versión publicada sigue igual.
+- **MON-1 · Un tercio de las líneas que declaran los programas sociales no calza con la ejecución** (166 de 477 en 2018, la única base que publica la línea presupuestaria).
 
-**Los datos abiertos concilian con la cifra oficial, pero la conciliación no se publica.**
-Con el perímetro del manual del FMI, los ingresos 2024 del dataset difieren
-en −0,55% de la cifra del Informe de Finanzas Públicas. DIPRES documenta la
-reclasificación en sus anexos metodológicos, pero no la incluye en el
-dataset: si se suman los datos abiertos sin conocerla, el resultado es
-técnicamente correcto y analíticamente falso.
-
-**El presupuesto de gastos se amplía todos los años.**
-La ley vigente al cierre supera a la inicial en los 9 años (mediana +17,5%;
-+61,4% en 2021). Los aumentos de gasto corriente caben en las excepciones
-del artículo 4, en pesos y en dólares, pero probarlo requiere fuentes que el
-dataset nacional no muestra: el programa Operaciones Complementarias del
-Tesoro, la venta de activos y los ingresos propios de cada partida, y las
-planillas de decretos de DIPRES.
-
-**La ejecución repite patrones.**
-Se ejecuta entre el 93,7% y el 99,0% de lo autorizado, pero las mismas
-líneas subejecutan año tras año (inversión de Educación: 9 de 9 años,
-mediana 62%) y las compras de activos se concentran en diciembre (Poder
-Judicial: mediana 78% del gasto del año en ese mes).
-
-**Endeudamiento: con el detalle de cada bono, cabe en las autorizaciones legales.**
-Con los Reportes de Deuda Bruta de DIPRES, bono por bono, el endeudamiento de
-2022 a 2025 queda dentro del tope del artículo 3. En 2020 y 2021 lo supera,
-pero cabe en la Ley 21.225 y en la bolsa del Fondo COVID (Ley 21.288: exceso
-de US$ 7.521 millones sobre una bolsa de 8.000). 2018 y 2019 quedan en el
-límite (100% y 102% del tope): no se publica cuánto se usó de la autorización
-aparte para bonos de reconocimiento. 2017 supera el tope ampliado en 0,8%,
-menos que el margen de error de la estimación.
-
-![Uso estimado del tope de endeudamiento](docs/graficos/deu1_endeudamiento.png)
-
-**La estructura del Estado se puede leer en la ley.**
-Entre 2018 y 2026 hubo 85 altas, 30 bajas y 6 traslados de servicios; los
-capítulos pasaron de 208 a 268. El traspaso de la educación municipal se ve
-completo: 59 Servicios Locales de Educación. Entre 2018 y 2020, el 79% de los
-cambios ocurrió a mitad de año; entre 2022 y 2026, solo el 9%.
-
-**El presupuesto publicado coincide con el de Contraloría; la ejecución no siempre.**
-Contrastado con el Informe de la Gestión Financiera del Estado (CGR, 2017-2025),
-el presupuesto por partida cuadra en 305 de 310 casos. El devengado difiere en
-líneas puntuales, casi siempre con el dataset por debajo y en las mismas partidas
-cada año (RREE todos los años). Los informes no explican la diferencia; se
-enviaron consultas por Ley 20.285 a DIPRES y a la CGR.
-
-![Diferencias DIPRES vs Contraloría](docs/graficos/val2_dataset_vs_cgr.png)
-
-**Calidad de la fuente.**
-En 59 casos una partida suma más que sus capítulos, algo que no puede
-deberse a la consolidación. El 86% coincide con un servicio creado a mitad
-de año, y no hay casos desde 2021. Hay líneas de ley repetidas con el monto
-exacto al doble (Primera Categoría, enero 2020: 8,3 billones de pesos
-repetidos como 16,5). El artículo 1 de la ley, el detalle que aprueba el
-Congreso, se publica en LeyChile como imagen. Extraído, cuadra con el
-dataset en 5.927 de 5.929 combinaciones partida × subtítulo. En 2024 y 2025,
-el archivo de ley por programa publica totales que su propio detalle no suma
-(632 subtítulos con líneas que faltan o sobran; en agosto de 2024 faltan 110,5 billones de pesos en el
-detalle de impuestos del Tesoro), y la versión publicada sigue igual. Detalle
-en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md).
-
-**El gasto de los programas sociales solo se pudo trazar a la ejecución en 2018.**
-La base de monitoreo 2018 es la única que publica la línea presupuestaria de
-cada programa (448 programas, 17,6 billones de pesos). Cruzada con la
-ejecución de DIPRES, el 79% del gasto declarado cuadra, exacto o a nivel de
-subtítulo; pero 166 de 477 líneas (35%) declaran una línea que no existe en
-la ejecución o un gasto mayor que el ejecutado, y en 66 celdas el campo del
-código presupuestario trae un monto. Desde 2019 la base ya no publica la
-línea: 2019 no trae identificación presupuestaria, 2020-2021 solo el nombre
-de la asignación y 2022-2024 partida y capítulo. Con eso, la suma de los
-programas queda bajo la ejecución de su capítulo en 210 de 220 casos. En 8
-de los otros 10 el exceso lo cubre la partida, como en Vivienda, Transportes
-y Redes Asistenciales, con programas declarados en un capítulo que no los
-ejecuta; en 2 se explica por gasto tributario declarado como gasto (la
-Franquicia Tributaria del SENCE).
+Los 25 hallazgos, con condición, criterio, evidencia y alcance, están en [`docs/HALLAZGOS.md`](docs/HALLAZGOS.md), que se regenera desde el pipeline. Los problemas de la fuente, en [`docs/CALIDAD_FUENTE.md`](docs/CALIDAD_FUENTE.md).
 
 ## Estructura
 
